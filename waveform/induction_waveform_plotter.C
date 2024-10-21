@@ -7,9 +7,9 @@
 #include <map>
 #include <vector>
 
-void waveform_plotter() {
+void induction_waveform_plotter() {
   // Open the ROOT file
-  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/hd_variable_test/hists_decode_data_evb01_EventBuilder1_art1_run16740_10_20240912T082517-30bef869-9d29-42a0-aa77-091ad9c1620d_Reco1Comm-20241017T214543.root");
+  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/hd_variable_test/hists_decode_data_evb01_EventBuilder1_art1_run16740_10_20240912T082517-30bef869-9d29-42a0-aa77-091ad9c1620d_Reco1Comm-20241017T220428.root");
 
   // Access the tree containing your waveform data
   TTree *tree = (TTree*)file->Get("hitdumper/hitdumpertree");

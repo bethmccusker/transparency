@@ -7,7 +7,7 @@
 
 // Function to calculate the average histogram from a vector of histograms
 TH1D* CalculateAverageHistogram(const std::vector<TH1D*>& histograms, int nBins) {
-  TH1D* averageHistogram = new TH1D("AverageHistogram", "Average Waveform;Time (ticks);ADC counts", nBins, 1, 41);
+  TH1D* averageHistogram = new TH1D("AverageHistogram", "Average Waveform;Time (ticks);ADC counts", nBins, 1, 61);
   int numHistograms = histograms.size();
   for (int iBin = 1; iBin <= nBins; ++iBin) {
     double sumBinContents = 0.0;
@@ -22,20 +22,31 @@ TH1D* CalculateAverageHistogram(const std::vector<TH1D*>& histograms, int nBins)
 }
 
 // Function to calculate the scaling factor based on the integral of the histogram
-double CalculateIntegral(TH1D* individualWaveform, TH1D* averageTemplate) {
-  double integral_individual = individualWaveform->Integral();
-  double integral_template = averageTemplate->Integral();
-  // std::cout<<"Individual Integral :" <<integral_individual<<std::endl;
-  // std::cout<<"Template Integral:"<<integral_template<<std::endl;
+std::pair<double, double> CalculateIntegralPeakTrough(TH1D* individualWaveform, TH1D* averageTemplate) {
+  int nBins = individualWaveform->GetNbinsX();
+  int centerBin =41;
 
-  if (integral_template == 0) {
-    std::cerr << "Error: Template histogram has zero integral!" << std::endl;
-    return 1.0;  // No scaling if template has zero integral
+  // Calculate integral for peak region (1 to centerBin)
+  double peak_individual = individualWaveform->Integral(1, centerBin);
+  double peak_template = averageTemplate->Integral(1, centerBin);
+
+  // Calculate integral for trough region (centerBin to nBins)
+  double trough_individual = individualWaveform->Integral(centerBin, nBins);
+  double trough_template = averageTemplate->Integral(centerBin, nBins);
+
+  // Handle edge case: if any template region has zero integral, return 1.0 as the scaling factor
+  if (peak_template == 0 || trough_template == 0) {
+    std::cerr << "Error: Template histogram has zero integral in peak or trough region!" << std::endl;
+    return std::make_pair(1.0, 1.0);   // No scaling if either region has zero integral
   }
 
-  // Scaling factor is the ratio of integrals
-  return integral_individual / integral_template;
+  // Scaling factor is a weighted average of the ratios of peak and trough integrals
+  double peak_scaling = peak_individual / peak_template;
+  double trough_scaling = trough_individual / trough_template;
+
+  return std::make_pair(peak_scaling, trough_scaling);
 }
+
 
 // Function to calculate Chi-squared
 double CalculateChiSquared(TH1D* individualWaveform, TH1D* scaledTemplate) {
@@ -46,7 +57,7 @@ double CalculateChiSquared(TH1D* individualWaveform, TH1D* scaledTemplate) {
     double O = individualWaveform->GetBinContent(i);  // Observed
     double E = scaledTemplate->GetBinContent(i);       // Expected
 
-    if (E>0) { // Avoid division by zero
+    if (E > 0) { // Avoid division by zero
       chi2 += (O - E) * (O - E) / E;
     }
   }
@@ -55,35 +66,70 @@ double CalculateChiSquared(TH1D* individualWaveform, TH1D* scaledTemplate) {
 }
 
 // Function to calculate the scaling factor based on peak amplitude
-double CalculateScalingFactor(TH1D* individualWaveform, TH1D* averageTemplate) {
-  int centralBin = 21;
+std::pair<double, double> CalculatePeakTroughScalingFactor(TH1D* individualWaveform, TH1D* averageTemplate) {
+  int nBins = individualWaveform->GetNbinsX();
+  int centerBin = 41;  // Central bin for dividing peak/trough
 
-  double amplitude_individual = individualWaveform->GetBinContent(centralBin);
-  double amplitude_template = averageTemplate->GetBinContent(centralBin);
-  // std::cout<<"Individual amplitude"<<amplitude_individual<<std::endl;
-  // std::cout<<"Template amplitude"<<amplitude_template<<std::endl;
+  // Identify peak and trough bins in both individual and template histograms
+  double peak_amplitude_individual = individualWaveform->GetMaximum();
+  double peak_amplitude_template = averageTemplate->GetMaximum();
 
-  if (amplitude_template == 0) {
-    std::cerr << "Error: Template histogram has zero amplitude at the central bin!" << std::endl;
-    return 1.0;  // No scaling if template has zero amplitude
+  double trough_amplitude_individual = individualWaveform->GetMinimum();
+  double trough_amplitude_template = averageTemplate->GetMinimum();
+
+  if (peak_amplitude_template == 0) {
+    std::cerr << "Error: Template histogram has zero peak amplitude!" << std::endl;
+    return std::make_pair(1.0, 1.0);  // Return default scaling factors in case of error
   }
 
-  // Scaling factor is the ratio of amplitudes
-  return amplitude_individual / amplitude_template;
+  if (trough_amplitude_template == 0) {
+    std::cerr << "Error: Template histogram has zero trough amplitude!" << std::endl;
+    return std::make_pair(1.0, 1.0);  // Return default scaling factors in case of error
+  }
+
+  // Calculate scaling factor as the ratio of amplitudes for peak and trough
+  double peak_scaling = peak_amplitude_individual / peak_amplitude_template;
+  double trough_scaling = trough_amplitude_individual / trough_amplitude_template;
+
+  // Return both scaling factors as a pair
+  return std::make_pair(peak_scaling, trough_scaling);
 }
+
 
 // Function to compare an individual waveform to the template
 void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, const char* output_dir, int wave_num,int wire_num, TGraph* scalingGraph) {
-  // Calculate scaling factor
-  double scalingFactor = CalculateScalingFactor(individualWaveform, averageTemplate);
-  std::cout << "Ratio of aplitudes for waveform " << wave_num << ": " << scalingFactor << std::endl;
-  //Calculate integral scale factor
-  double integralScale = CalculateIntegral(individualWaveform, averageTemplate);
-   std::cout << "Ratio of integrals for waveform " << wave_num << ": " << integralScale << std::endl;
-  scalingGraph->SetPoint(scalingGraph->GetN(), wire_num, scalingFactor);
-  // Scale the template
+  // Calculate separate scaling factors for peak (before central bin) and trough (after central bin)
+  std::pair<double, double> scalingFactors = CalculatePeakTroughScalingFactor(individualWaveform, averageTemplate);
+
+  // Extract the scaling factors
+  double peakScalingFactor = scalingFactors.first;
+  double troughScalingFactor = scalingFactors.second;
+
+  // Log the scaling factors
+  std::cout << "Scaling factor for peak region of waveform " << wave_num << ": " << peakScalingFactor << std::endl;
+  std::cout << "Scaling factor for trough region of waveform " << wave_num << ": " << troughScalingFactor << std::endl;
+
+  // Optionally update the scaling graph with the peak or trough scaling factor (you can decide which one to use here)
+  scalingGraph->SetPoint(scalingGraph->GetN(), wire_num, troughScalingFactor);
+
+  // Clone the template to apply different scaling for peak and trough
   TH1D* Template = (TH1D*)averageTemplate->Clone(Form("scaled_template_%d", wave_num));
-  Template->Scale(scalingFactor);  // Apply scaling factor
+
+  // Define the central bin
+  int nBins = individualWaveform->GetNbinsX();
+  int centerBin = 41;
+
+  // Scale the peak region (1 to centerBin)
+  for (int iBin = 1; iBin <= centerBin; ++iBin) {
+    double originalContent = Template->GetBinContent(iBin);
+    Template->SetBinContent(iBin, originalContent * peakScalingFactor);
+  }
+
+  // Scale the trough region (centerBin to nBins)
+  for (int iBin = centerBin + 1; iBin <= nBins; ++iBin) {
+    double originalContent = Template->GetBinContent(iBin);
+    Template->SetBinContent(iBin, originalContent * troughScalingFactor);
+  } 
 
   // Calculate Chi-squared
   double chi2 = CalculateChiSquared(individualWaveform, Template);
@@ -104,13 +150,14 @@ void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, 
   Template->Draw("HIST SAME");
 
    // Add a legend to differentiate the plots
+  /*
   TLegend *legend = new TLegend(0.7, 0.7, 0.9, 0.9);
   legend->AddEntry(individualWaveform, "Individual Waveform", "l");
   legend->AddEntry(Template, "Scaled Template", "l");
   legend->Draw();
-
+  */
   // Save the comparison plot
-    c_compare->SaveAs(Form("%scomparison_waveform_%d.pdf", output_dir, wave_num));
+      c_compare->SaveAs(Form("%scomparison_waveform_%d.pdf", output_dir, wave_num));
 
   // Clean up
   delete c_compare;
@@ -118,9 +165,9 @@ void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, 
 }
 
 
-void template_maker() {
+void induction_1_template_maker() {
    gStyle->SetOptStat(0); //Removing the stats box
-  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/hd_variable_test/hists_decode_data_evb01_EventBuilder1_art1_run16740_10_20240912T082517-30bef869-9d29-42a0-aa77-091ad9c1620d_Reco1Comm-20241017T214543.root");
+  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/hd_variable_test/hists_decode_data_evb01_EventBuilder1_art1_run16740_10_20240912T082517-30bef869-9d29-42a0-aa77-091ad9c1620d_Reco1Comm-20241017T221019.root");
   TTree *tree = (TTree*)file->Get("hitdumper/hitdumpertree");
 
   // Variables to store the data
@@ -138,7 +185,7 @@ void template_maker() {
   const char *output_dir = "/exp/sbnd/data/users/bethanym/wire_transparency/templateFitting/";
 
   // Vector to store histograms of each waveform
-  int nBins = 41;
+  int nBins = 61;
   std::vector<TH1D*> histograms;
   TGraph* scalingGraph = new TGraph();
   std::map<int, int> waveform_wire_map;
@@ -171,7 +218,7 @@ void template_maker() {
 
 
       // Create a histogram for the waveform
-      TH1D* hist = new TH1D(Form("waveform_%d", wave_num), Form("Waveform %d;Time (ticks);ADC counts", wave_num), nBins, 1, 41);
+      TH1D* hist = new TH1D(Form("waveform_%d", wave_num), Form("Waveform %d;Time (ticks);ADC counts", wave_num), nBins, 1, 61);
 
       // Fill the histogram with ADC values at corresponding time bins
       for (size_t k = 0; k < adc_vals.size(); k++) {
@@ -188,7 +235,7 @@ void template_maker() {
       hist->Draw();
 
       // Save the plot as a PNG file with the output directory
-      //          c1->SaveAs(Form("%swaveform_%d.pdf", output_dir, wave_num));
+      //      c1->SaveAs(Form("%swaveform_%d.pdf", output_dir, wave_num));
 
       // Clean up
       delete c1;
@@ -223,7 +270,7 @@ void template_maker() {
   scalingGraph->GetXaxis()->SetLimits(0, 1700);
   scalingGraph->Draw("AP");
   c_scaling->SaveAs(Form("%sscaling_factor_vs_wire_number.pdf", output_dir));
-
+  
   // Clean up
   for (auto hist : histograms) {
     delete hist;
