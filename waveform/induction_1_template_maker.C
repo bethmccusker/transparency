@@ -3,6 +3,7 @@
 #include "TGraph.h"
 #include "TCanvas.h"
 #include "TH1F.h"
+#include "TMath.h"
 #include <iostream>
 
 // Function to calculate the average histogram from a vector of histograms
@@ -57,8 +58,8 @@ double CalculateChiSquared(TH1D* individualWaveform, TH1D* scaledTemplate) {
     double O = individualWaveform->GetBinContent(i);  // Observed
     double E = scaledTemplate->GetBinContent(i);       // Expected
 
-    if (E > 0) { // Avoid division by zero
-      chi2 += (O - E) * (O - E) / E;
+    if (!(E == 0.0)) { // Avoid division by zero
+      chi2 += (O - E) * (O - E) / TMath::Abs(E);
     }
   }
 
