@@ -98,7 +98,7 @@ std::pair<double, double> CalculatePeakTroughScalingFactor(TH1D* individualWavef
 
 
 // Function to compare an individual waveform to the template
-void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, const char* output_dir, int wave_num,int wire_num, TGraph* scalingGraph) {
+void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, const char* output_dir, int wave_num,int wire_num, TGraph* scalingGraph, double hit_tim, TH2D* heat_map) {
   // Calculate separate scaling factors for peak (before central bin) and trough (after central bin)
   std::pair<double, double> scalingFactors = CalculatePeakTroughScalingFactor(individualWaveform, averageTemplate);
 
@@ -136,6 +136,8 @@ void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, 
   double chi2 = CalculateChiSquared(individualWaveform, Template);
   std::cout << "Chi-squared for waveform " << wave_num << ": " << chi2 << std::endl;
 
+  heat_map->Fill(wire_num, hit_tim);
+
   // Create a canvas for comparison plot
   TCanvas *c_compare = new TCanvas(Form("c_compare_%d", wave_num), "Comparison with Template", 800, 600);
 
@@ -150,14 +152,14 @@ void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, 
   Template->SetLineWidth(2);
   Template->Draw("HIST SAME");
 
-   // Add a legend to differentiate the plots
+  // Add a legend to differentiate the plots
   TLegend *legend = new TLegend(0.7, 0.7, 0.9, 0.9);
   legend->AddEntry(individualWaveform, "Individual Waveform", "l");
   legend->AddEntry(Template, "Scaled Template", "l");
   legend->Draw();
 
   // Save the comparison plot
-      c_compare->SaveAs(Form("%scomparison_waveform_%d.pdf", output_dir, wave_num));
+  //      c_compare->SaveAs(Form("%scomparison_waveform_%d.pdf", output_dir, wave_num));
 
   // Clean up
   delete c_compare;
@@ -166,8 +168,10 @@ void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, 
 
 
 void induction_template_maker() {
-   gStyle->SetOptStat(0); //Removing the stats box
-  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/hd_variable_test/hists_decode_data_evb01_EventBuilder1_art1_run16740_10_20240912T082517-30bef869-9d29-42a0-aa77-091ad9c1620d_Reco1Comm-20241017T220428.root");
+  gStyle->SetOptStat(0); //Removing the stats box
+  gStyle->SetPalette(kCandy);
+  TColor::InvertPalette();
+  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/hd_variable_test/hists_decode_data_evb01_EventBuilder1_art1_run16740_10_20240912T082517-30bef869-9d29-42a0-aa77-091ad9c1620d_Reco1Comm-20241022T211042.root");
   TTree *tree = (TTree*)file->Get("hitdumper/hitdumpertree");
 
   // Variables to store the data
@@ -175,12 +179,14 @@ void induction_template_maker() {
   std::vector<float> *adc_on_wire = nullptr;
   std::vector<float> *time_for_waveform = nullptr;
   std::vector<int> *wire_number = nullptr;
+  std::vector<int> *hit_time = nullptr;
 
   // Set branch addresses to connect the variables to the tree
   tree->SetBranchAddress("waveform_number", &waveform_number);
   tree->SetBranchAddress("adc_on_wire", &adc_on_wire);
   tree->SetBranchAddress("time_for_waveform", &time_for_waveform);
   tree->SetBranchAddress("wire_number", &wire_number);
+  tree->SetBranchAddress("hit_time", &hit_time);
 
   const char *output_dir = "/exp/sbnd/data/users/bethanym/wire_transparency/templateFitting/";
 
@@ -188,7 +194,10 @@ void induction_template_maker() {
   int nBins = 41;
   std::vector<TH1D*> histograms;
   TGraph* scalingGraph = new TGraph();
+  TH2D* heat_map = new TH2D("h_wire_vs_peak_time", "Wire Number vs Peak Time",  500, 0, 2000, 500, 0, 3500);
   std::map<int, int> waveform_wire_map;
+  std::map<int, double> waveform_peak_time_map;
+
   // Loop over tree entries (events)
   Long64_t nEntries = tree->GetEntries();
   for (Long64_t i = 0; i < nEntries; i++) {
@@ -207,6 +216,7 @@ void induction_template_maker() {
 	waveform_adc_map[wave_num].push_back(adc_on_wire->at(j));
 	//	waveform_time_map[wave_num].push_back(time_for_waveform->at(j));
 	waveform_wire_map[wave_num] = wire_number->at(j);
+	waveform_peak_time_map[wave_num] = hit_time->at(j); 
       }
     }
   
@@ -241,9 +251,22 @@ void induction_template_maker() {
       delete c1;
     }
   }
+ 
+ std::vector<TH1D*> filtered_histograms;
 
-  // Calculate the average histogram (template)
-  TH1D* averageHistogram = CalculateAverageHistogram(histograms, nBins);
+  int wave_numb=1;
+  for (auto hist : histograms) {
+    double peak_time = waveform_peak_time_map[wave_numb];
+    if ((peak_time < 500) || (peak_time > 800)) {
+      wave_numb++;
+      continue;
+    }
+
+    filtered_histograms.push_back(hist);
+    wave_numb++;
+  }
+  // Calculate the average histogram (template)                                                                                                                                                 
+  TH1D* averageHistogram = CalculateAverageHistogram(filtered_histograms, nBins);
 
   // Plot and save the averaged histogram
   TCanvas *c_avg = new TCanvas("c_avg", "Average Waveform", 800, 600);
@@ -253,15 +276,22 @@ void induction_template_maker() {
   c_avg->SaveAs(Form("%stemplate_waveform.pdf", output_dir));
 
   
-  // Compare individual waveforms to the average template and plot
+  // Compare individual waveforms to the average template and plot                                                                                                                                                    
   int wave_num=1;
   for (auto hist : histograms) {
+    double peak_time = waveform_peak_time_map[wave_num];
+    if ((peak_time < 500) || (peak_time > 800)) {
+      wave_num++;
+      continue;
+    }
+
     int wire_num = waveform_wire_map[wave_num];
-    CompareWaveformToTemplate(hist, averageHistogram, output_dir, wave_num,wire_num,scalingGraph);
+    double hit_tim=waveform_peak_time_map[wave_num];
+    CompareWaveformToTemplate(hist, averageHistogram, output_dir, wave_num,wire_num,scalingGraph, hit_tim, heat_map);
     wave_num++;
   }
-    
-  // Plot and save the scaling factor vs wire number
+
+
   TCanvas *c_scaling = new TCanvas("c_scaling", "Scaling Factor vs Wire Number", 800, 600);
   scalingGraph->SetTitle("Scaling Factor vs Wire Number;Wire Number;Scaling Factor");
   scalingGraph->SetMarkerStyle(8);
@@ -271,6 +301,12 @@ void induction_template_maker() {
   scalingGraph->Draw("AP");
   c_scaling->SaveAs(Form("%sscaling_factor_vs_wire_number.pdf", output_dir));
   
+  TCanvas* c_wire_vs_time = new TCanvas("c_wire_vs_time", "Wire vs Peak Time", 900, 600);
+  heat_map->Draw("COLZ");
+  heat_map->GetXaxis()->SetTitle("Wire Number");
+  heat_map->GetYaxis()->SetTitle("Waveform Time (Ticks)");
+  c_wire_vs_time->SaveAs(Form("%sheat_map.pdf", output_dir));
+
   // Clean up
   for (auto hist : histograms) {
     delete hist;
