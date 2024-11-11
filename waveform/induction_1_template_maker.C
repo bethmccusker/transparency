@@ -210,6 +210,7 @@ void induction_1_template_maker() {
   TTree *tree = (TTree*)file->Get("hitdumper/hitdumpertree;3");
 
   // Variables to store the data
+  Int_t *nhits = nullptr;
   std::vector<int> *waveform_number = nullptr;
   std::vector<float> *adc_on_wire = nullptr;
   std::vector<float> *time_for_waveform = nullptr;
@@ -217,6 +218,7 @@ void induction_1_template_maker() {
   std::vector<double> *hit_time = nullptr;
 
   // Set branch addresses to connect the variables to the tree
+  tree->SetBranchAddress("nhits", &nhits);
   tree->SetBranchAddress("waveform_number", &waveform_number);
   tree->SetBranchAddress("adc_on_wire", &adc_on_wire);
   tree->SetBranchAddress("time_for_waveform", &time_for_waveform);
@@ -231,15 +233,17 @@ void induction_1_template_maker() {
   std::vector<std::map<int, int>> waveform_wire_map;
   std::vector<std::map<int, double>> waveform_peak_time_map;
 
-  TGraph* scalingGraph = new TGraph();
-  TH2D* heat_map = new TH2D("h_wire_vs_peak_time", "Wire Number vs Peak Time",  500, 0, 2000, 500, 0, 3500);
-  TH2D* scaling_factors = new TH2D("peak", "trough",  100, 0, 18, 100, 0, 6);
 
   // Loop over tree entries (events)
   Long64_t nEntries = tree->GetEntries();
   for (Long64_t i = 0; i < nEntries; i++) {
     tree->GetEntry(i); // Load the ith entry
 
+    ///if (nhits == 0) {
+    ///  std::cout << "oops, nothing here!!" << std::endl;
+    ///  continue;
+    ///}
+    std::cout << "entry " << i << " has this many hits: " << nhits << std::endl;
 
     // Map to store waveform data indexed by waveform number                                                                                                                                                         
     std::map<int, std::vector<double>> waveform_adc_map;
@@ -271,7 +275,7 @@ void induction_1_template_maker() {
     
 
       // Create a histogram for the waveform
-      TH1D* hist = new TH1D(Form("waveform_%d", wave_num), Form("Waveform %d;Time (ticks);ADC counts", wave_num), nBins, 1, 67);
+      TH1D* hist = new TH1D(Form("waveform_%d_entry_%lld", wave_num, i), Form("Waveform %d;Time (ticks);ADC counts", wave_num), nBins, 1, 67);
 
       // Fill the histogram with ADC values at corresponding time bins
       for (size_t k = 0; k < adc_vals.size(); k++) {
@@ -310,9 +314,19 @@ void induction_1_template_maker() {
   
   // Compare individual waveforms to the average template and plot
   for (int i = 0; i < nEntries; i++) {
+    tree->GetEntry(i);
+    if (nhits == 0) {
+      std::cout << "no waveforms or hits for entry " << i << std::endl;
+      continue;
+    }
+
+    TGraph* scalingGraph = new TGraph();
+    TH2D* heat_map = new TH2D("h_wire_vs_peak_time", "Wire Number vs Peak Time",  500, 0, 2000, 500, 0, 3500);
+    TH2D* scaling_factors = new TH2D("peak", "trough",  100, 0, 18, 100, 0, 6);
+
     int wave_num=1;
     for (auto hist : histograms.at(i)) {
-      std::cout << histograms.size() << "\n";
+      // std::cout << histograms.size() << "\n";
       double hit_tim=waveform_peak_time_map.at(i)[wave_num]; 
       int wire_num = waveform_wire_map.at(i)[wave_num];
       std::cout << "wire number for  waveform " << wave_num << ": " << wire_num << std::endl;
@@ -344,9 +358,13 @@ void induction_1_template_maker() {
     scaling_factors->GetYaxis()->SetTitle("Trough Scaling");
     c_scaling_factors->SaveAs(Form("%sscaling_factors_entry_%d.pdf", output_dir, i));
 
-    heat_map->Reset();
-    scaling_factors->Reset();
-    scalingGraph->Set(0);
+    delete scalingGraph;
+    delete heat_map;
+    delete scaling_factors;
+
+    //heat_map->Reset();
+    //scaling_factors->Reset();
+    //scalingGraph->Set(0);
   }
 
   //   Clean up
