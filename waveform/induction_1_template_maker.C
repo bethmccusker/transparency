@@ -6,21 +6,53 @@
 #include "TMath.h"
 #include <iostream>
 
-// Function to calculate the average histogram from a vector of histograms
-TH1D* CalculateAverageHistogram(const std::vector<TH1D*>& histograms, int nBins) {
-  TH1D* averageHistogram = new TH1D("AverageHistogram", "Average Waveform;Time (ticks);ADC counts", nBins, 1, 61);
-  int numHistograms = histograms.size();
-  for (int iBin = 1; iBin <= nBins; ++iBin) {
-    double sumBinContents = 0.0;
-    for (const auto& histo : histograms) {
-      sumBinContents += histo->GetBinContent(iBin);
-    }
-    double averageBinContent = sumBinContents / numHistograms;
-    averageHistogram->SetBinContent(iBin, averageBinContent);
+
+TH1D* CalculateAverageHistogram(const std::vector<std::vector<TH1D*>>& histograms, int nBins) {
+  // Create the final histogram to store averages
+  auto averageHistogram = new TH1D("AverageHistogram", "Average Waveform;Time (ticks);ADC counts", nBins, 1, 67);
+
+  int numEvents = histograms.size();
+  if (numEvents == 0) {
+    std::cerr << "No histograms provided!" << std::endl;
+    return averageHistogram;
   }
-  std::cout<<numHistograms<<"    Number of histograms in template"<<std::endl;
+
+  // Accumulator for bin-wise averages
+  std::vector<double> averageOfAverages(nBins, 0.0);
+  int totalHistograms = 0;
+
+  for (const auto& eventHistograms : histograms) {
+    int numHistograms = eventHistograms.size();
+    if (numHistograms == 0) continue; // Skip empty events
+
+    totalHistograms += numHistograms;
+
+    // Temporary storage for this event's averages
+    std::vector<double> eventAverages(nBins, 0.0);
+    for (int iBin = 1; iBin <= nBins; ++iBin) {
+      double sumBinContents = 0.0;
+      for (const auto& histo : eventHistograms) {
+        if (!histo) continue; // Handle null pointers gracefully
+        sumBinContents += histo->GetBinContent(iBin);
+      }
+      eventAverages[iBin - 1] = sumBinContents / numHistograms;
+    }
+
+    // Accumulate into the global average
+    for (int iBin = 0; iBin < nBins; ++iBin) {
+      averageOfAverages[iBin] += eventAverages[iBin];
+    }
+  }
+
+  // Normalize global averages and set the bin contents
+  for (int iBin = 0; iBin < nBins; ++iBin) {
+    averageHistogram->SetBinContent(iBin + 1, averageOfAverages[iBin] / numEvents);
+  }
+
+  std::cout << totalHistograms << "   Number of histograms in the full template" << std::endl;
   return averageHistogram;
 }
+
 
 // Function to calculate the scaling factor based on the integral of the histogram
 std::pair<double, double> CalculateIntegralPeakTrough(TH1D* individualWaveform, TH1D* averageTemplate) {
@@ -98,7 +130,7 @@ std::pair<double, double> CalculatePeakTroughScalingFactor(TH1D* individualWavef
 
 
 // Function to compare an individual waveform to the template
-void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, const char* output_dir, int wave_num,int wire_num, TGraph* scalingGraph, double hit_tim, TH2D* heat_map) {
+void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, const char* output_dir, int wave_num,int wire_num, TGraph* scalingGraph, double hit_tim, TH2D* heat_map, TH2D* scaling_factors ) {
   // Calculate separate scaling factors for peak (before central bin) and trough (after central bin)
   std::pair<double, double> scalingFactors = CalculatePeakTroughScalingFactor(individualWaveform, averageTemplate);
 
@@ -109,6 +141,8 @@ void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, 
   // Log the scaling factors
   std::cout << "Scaling factor for peak region of waveform " << wave_num << ": " << peakScalingFactor << std::endl;
   std::cout << "Scaling factor for trough region of waveform " << wave_num << ": " << troughScalingFactor << std::endl;
+
+  scaling_factors->Fill(peakScalingFactor, troughScalingFactor);
 
   // Optionally update the scaling graph with the peak or trough scaling factor (you can decide which one to use here)
   scalingGraph->SetPoint(scalingGraph->GetN(), wire_num, troughScalingFactor);
@@ -160,7 +194,7 @@ void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, 
   legend->Draw();
   */
   // Save the comparison plot
-  //      c_compare->SaveAs(Form("%scomparison_waveform_%d.pdf", output_dir, wave_num));
+  //  c_compare->SaveAs(Form("%scomparison_waveform_%d.pdf", output_dir, wave_num));
 
   // Clean up
   delete c_compare;
@@ -169,11 +203,11 @@ void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, 
 
 
 void induction_1_template_maker() {
-   gStyle->SetOptStat(0); //Removing the stats box
+  // gStyle->SetOptStat(0); //Removing the stats box
    gStyle->SetPalette(kCandy);
    TColor::InvertPalette();
-  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/hd_variable_test/hists_decode_data_evb01_EventBuilder1_art1_run16740_10_20240912T082517-30bef869-9d29-42a0-aa77-091ad9c1620d_Reco1Comm-20241022T212234.root");
-  TTree *tree = (TTree*)file->Get("hitdumper/hitdumpertree");
+  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb01_EventBuilder1_art1_run16740_10_20240912T082517-30bef869-9d29-42a0-aa77-091ad9c1620d_Reco1Comm-20241107T213328.root");
+  TTree *tree = (TTree*)file->Get("hitdumper/hitdumpertree;3");
 
   // Variables to store the data
   std::vector<int> *waveform_number = nullptr;
@@ -192,21 +226,27 @@ void induction_1_template_maker() {
   const char *output_dir = "/exp/sbnd/data/users/bethanym/wire_transparency/templateFitting/";
 
   // Vector to store histograms of each waveform
-  int nBins = 61;
-  std::vector<TH1D*> histograms;
+  int nBins = 67;
+  std::vector<std::vector<TH1D*>> histograms;
+  std::vector<std::map<int, int>> waveform_wire_map;
+  std::vector<std::map<int, double>> waveform_peak_time_map;
+
   TGraph* scalingGraph = new TGraph();
   TH2D* heat_map = new TH2D("h_wire_vs_peak_time", "Wire Number vs Peak Time",  500, 0, 2000, 500, 0, 3500);
-  std::map<int, int> waveform_wire_map;
-  std::map<int, double> waveform_peak_time_map;
+  TH2D* scaling_factors = new TH2D("peak", "trough",  100, 0, 18, 100, 0, 6);
+
   // Loop over tree entries (events)
   Long64_t nEntries = tree->GetEntries();
   for (Long64_t i = 0; i < nEntries; i++) {
     tree->GetEntry(i); // Load the ith entry
 
+
     // Map to store waveform data indexed by waveform number                                                                                                                                                         
     std::map<int, std::vector<double>> waveform_adc_map;
-    // std::map<int, std::vector<double>> waveform_time_map;
+    //std::map<int, std::vector<double>> waveform_time_map;
    
+    std::map<int, int> temp_waveform_wire_map;
+    std::map<int, double> temp_waveform_peak_time_map;
     // Loop through each data point in the current entry and organize by waveform number
     for (size_t j = 0; j < waveform_number->size(); j++) {
       // Check for valid ADC and time values (filter out -9999 default)
@@ -215,20 +255,23 @@ void induction_1_template_maker() {
 	int wave_num = waveform_number->at(j);
 	waveform_adc_map[wave_num].push_back(adc_on_wire->at(j));
 	//	waveform_time_map[wave_num].push_back(time_for_waveform->at(j));
-	waveform_wire_map[wave_num] = wire_number->at(j);
-	waveform_peak_time_map[wave_num] = hit_time->at(j);
+	temp_waveform_wire_map[wave_num] = wire_number->at(j);
+	temp_waveform_peak_time_map[wave_num] = hit_time->at(j);
       }
     }
+
+    waveform_wire_map.push_back(temp_waveform_wire_map);
+    waveform_peak_time_map.push_back(temp_waveform_peak_time_map);
   
+    std::vector<TH1D*> temp_histograms;
     // For each unique waveform, create a histogram
     for (const auto &entry : waveform_adc_map) {
       int wave_num = entry.first;
       const std::vector<double>& adc_vals = entry.second;
-      // const std::vector<double>& time_vals = waveform_time_map[wave_num];
-
+    
 
       // Create a histogram for the waveform
-      TH1D* hist = new TH1D(Form("waveform_%d", wave_num), Form("Waveform %d;Time (ticks);ADC counts", wave_num), nBins, 1, 61);
+      TH1D* hist = new TH1D(Form("waveform_%d", wave_num), Form("Waveform %d;Time (ticks);ADC counts", wave_num), nBins, 1, 67);
 
       // Fill the histogram with ADC values at corresponding time bins
       for (size_t k = 0; k < adc_vals.size(); k++) {
@@ -236,7 +279,7 @@ void induction_1_template_maker() {
       }
 
       // Add the histogram to the vector
-      histograms.push_back(hist);
+      temp_histograms.push_back(hist);
 
       // Create a canvas to draw the histogram
       TCanvas *c1 = new TCanvas(Form("c1_waveform_%d", wave_num), "Waveform", 800, 600);
@@ -250,10 +293,12 @@ void induction_1_template_maker() {
       // Clean up
       delete c1;
     }
+    histograms.push_back(temp_histograms);
   }
 
   // Calculate the average histogram (template)
   TH1D* averageHistogram = CalculateAverageHistogram(histograms, nBins);
+  std::cout << "made it past calculating avg hists\n";
 
   // Plot and save the averaged histogram
   TCanvas *c_avg = new TCanvas("c_avg", "Average Waveform", 800, 600);
@@ -264,35 +309,52 @@ void induction_1_template_maker() {
 
   
   // Compare individual waveforms to the average template and plot
-  int wave_num=1;
-  for (auto hist : histograms) {
-    double hit_tim=waveform_peak_time_map[wave_num]; 
-    int wire_num = waveform_wire_map[wave_num];
-    CompareWaveformToTemplate(hist, averageHistogram, output_dir, wave_num,wire_num,scalingGraph,hit_tim, heat_map);
-    wave_num++;
-  }
-    
-  // Plot and save the scaling factor vs wire number
-  TCanvas *c_scaling = new TCanvas("c_scaling", "Scaling Factor vs Wire Number", 800, 600);
-  scalingGraph->SetTitle("Scaling Factor vs Wire Number;Wire Number;Scaling Factor");
-  scalingGraph->SetMarkerStyle(8);
-  scalingGraph->SetMarkerColor(kRed-6);
-  scalingGraph->SetMarkerSize(0.75);
-  scalingGraph->GetXaxis()->SetLimits(0, 1700);
-  scalingGraph->Draw("AP");
-  c_scaling->SaveAs(Form("%sscaling_factor_vs_wire_number.pdf", output_dir));
+  for (int i = 0; i < nEntries; i++) {
+    int wave_num=1;
+    for (auto hist : histograms.at(i)) {
+      std::cout << histograms.size() << "\n";
+      double hit_tim=waveform_peak_time_map.at(i)[wave_num]; 
+      int wire_num = waveform_wire_map.at(i)[wave_num];
+      std::cout << "wire number for  waveform " << wave_num << ": " << wire_num << std::endl;
+      CompareWaveformToTemplate(hist, averageHistogram, output_dir, wave_num,wire_num,scalingGraph,hit_tim, heat_map, scaling_factors);
+      wave_num++;
+    }
   
-  TCanvas* c_wire_vs_time = new TCanvas("c_wire_vs_time", "Wire vs Peak Time", 900, 600);
-  heat_map->Draw("COLZ");
-  heat_map->GetXaxis()->SetTitle("Wire Number");
-  heat_map->GetYaxis()->SetTitle("Waveform Time (Ticks)");
-  c_wire_vs_time->SaveAs(Form("%sheat_map.pdf", output_dir));
+    
+    // Plot and save the scaling factor vs wire number
+    TCanvas *c_scaling = new TCanvas("c_scaling", "Scaling Factor vs Wire Number", 800, 600);
+    scalingGraph->SetTitle("Scaling Factor vs Wire Number;Wire Number;Scaling Factor");
+    scalingGraph->SetMarkerStyle(8);
+    scalingGraph->SetMarkerColor(kRed-6);
+    scalingGraph->SetMarkerSize(0.75);
+    scalingGraph->GetXaxis()->SetLimits(0, 1700);
+    scalingGraph->Draw("AP");
+    c_scaling->SaveAs(Form("%sscaling_factor_vs_wire_number_entry_%d.pdf", output_dir, i));
+    
+    TCanvas* c_wire_vs_time = new TCanvas("c_wire_vs_time", "Wire vs Peak Time", 900, 600);
+    heat_map->Draw("COLZ");
+    heat_map->GetXaxis()->SetTitle("Wire Number");
+    heat_map->GetYaxis()->SetTitle("Waveform Time (Ticks)");
+    c_wire_vs_time->SaveAs(Form("%sheat_map_entry_%d.pdf", output_dir, i));
+  
 
-  // Clean up
-  for (auto hist : histograms) {
-    delete hist;
+    TCanvas* c_scaling_factors = new TCanvas("", "", 900, 600);
+    scaling_factors->Draw("COLZ");
+    scaling_factors->GetXaxis()->SetTitle("Peak Scaling");
+    scaling_factors->GetYaxis()->SetTitle("Trough Scaling");
+    c_scaling_factors->SaveAs(Form("%sscaling_factors_entry_%d.pdf", output_dir, i));
+
+    heat_map->Reset();
+    scaling_factors->Reset();
+    scalingGraph->Set(0);
   }
-  delete c_avg;
-  delete averageHistogram;
-  delete file;
+
+  //   Clean up
+  // for (auto hist : histograms) {
+    // delete hist;
+    //  }
+
+  //delete c_avg;
+  //delete averageHistogram;
+  //delete file;
 }
