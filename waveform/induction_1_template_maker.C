@@ -145,7 +145,7 @@ void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, 
   scaling_factors->Fill(peakScalingFactor, troughScalingFactor);
 
   // Optionally update the scaling graph with the peak or trough scaling factor (you can decide which one to use here)
-  scalingGraph->SetPoint(scalingGraph->GetN(), wire_num, troughScalingFactor);
+  scalingGraph->SetPoint(scalingGraph->GetN(), wire_num, peakScalingFactor);
 
   // Clone the template to apply different scaling for peak and trough
   TH1D* Template = (TH1D*)averageTemplate->Clone(Form("scaled_template_%d", wave_num));
@@ -203,7 +203,7 @@ void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, 
 
 
 void induction_1_template_maker() {
-  // gStyle->SetOptStat(0); //Removing the stats box
+  gStyle->SetOptStat(0); //Removing the stats box
    gStyle->SetPalette(kCandy);
    TColor::InvertPalette();
   TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb01_EventBuilder1_art1_run16740_10_20240912T082517-30bef869-9d29-42a0-aa77-091ad9c1620d_Reco1Comm-20241107T213328.root");

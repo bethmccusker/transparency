@@ -5,23 +5,50 @@
 #include "TH1F.h"
 #include <iostream>
 
-// Function to calculate the average histogram from a vector of histograms
-TH1D* CalculateAverageHistogram(const std::vector<TH1D*>& histograms, int nBins) {
-  TH1D* averageHistogram = new TH1D("AverageHistogram", "Average Waveform;Time (ticks);ADC counts", nBins, 1, 41);
-  int numHistograms = histograms.size();
-  for (int iBin = 1; iBin <= nBins; ++iBin) {
-    double sumBinContents = 0.0;
-    for (const auto& histo : histograms) {
+TH1D* CalculateAverageHistogram(const std::vector<std::vector<TH1D*>>& histograms, int nBins) {
+  // Create the final histogram to store averages
+  auto averageHistogram = new TH1D("AverageHistogram", "Average Waveform;Time (ticks);ADC counts", nBins, 1, 67);
 
-      sumBinContents += histo->GetBinContent(iBin);
-    }
-    double averageBinContent = sumBinContents / numHistograms;
-    averageHistogram->SetBinContent(iBin, averageBinContent);
+  int numEvents = histograms.size();
+  if (numEvents == 0) {
+    std::cerr << "No histograms provided!" << std::endl;
+    return averageHistogram;
   }
-  std::cout<<numHistograms<<"    Number of histograms in template"<<std::endl;
+
+  // Accumulator for bin-wise averages
+  std::vector<double> averageOfAverages(nBins, 0.0);
+  int totalHistograms = 0;
+
+  for (const auto& eventHistograms : histograms) {
+    int numHistograms = eventHistograms.size();
+    if (numHistograms == 0) continue; // Skip empty events
+
+    totalHistograms += numHistograms;
+
+    // Temporary storage for this event's averages
+    std::vector<double> eventAverages(nBins, 0.0);
+    for (int iBin = 1; iBin <= nBins; ++iBin) {
+      double sumBinContents = 0.0;
+      for (const auto& histo : eventHistograms) {
+        if (!histo) continue; // Handle null pointers gracefully
+        sumBinContents += histo->GetBinContent(iBin);
+      }
+      eventAverages[iBin - 1] = sumBinContents / numHistograms;
+    }
+    // Accumulate into the global average
+    for (int iBin = 0; iBin < nBins; ++iBin) {
+      averageOfAverages[iBin] += eventAverages[iBin];
+    }
+  }
+
+  // Normalize global averages and set the bin contents
+  for (int iBin = 0; iBin < nBins; ++iBin) {
+    averageHistogram->SetBinContent(iBin + 1, averageOfAverages[iBin] / numEvents);
+  }
+
+  std::cout << totalHistograms << "   Number of histograms in the full template" << std::endl;
   return averageHistogram;
 }
-
 
 
 // Function to calculate the scaling factor based on the integral of the histogram
@@ -60,8 +87,6 @@ double CalculateChiSquared(TH1D* individualWaveform, TH1D* scaledTemplate) {
 }
 
 
-
-
 // Function to calculate the scaling factor based on peak amplitude
 double CalculateScalingFactor(TH1D* individualWaveform, TH1D* averageTemplate) {
   int centralBin = 21;
@@ -82,10 +107,8 @@ double CalculateScalingFactor(TH1D* individualWaveform, TH1D* averageTemplate) {
 
 
 
-
 // Function to compare an individual waveform to the template
 void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, const char* output_dir, int wave_num,int wire_num, TGraph* scalingGraph, double hit_tim, TH2D* heat_map) {
-  // Calculate scaling factor
   double scalingFactor = CalculateScalingFactor(individualWaveform, averageTemplate);
   std::cout << "Ratio of aplitudes for waveform " << wave_num << ": " << scalingFactor << std::endl;
   //Calculate integral scale factor
@@ -123,7 +146,7 @@ void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, 
   legend->Draw();
 
   // Save the comparison plot
-  // c_compare->SaveAs(Form("%scomparison_waveform_%d.pdf", output_dir, wave_num));
+  //     c_compare->SaveAs(Form("%scomparison_waveform_%d.pdf", output_dir, wave_num));
 
   // Clean up
   delete c_compare;
@@ -131,55 +154,16 @@ void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, 
 }
 
 
-std::vector<int> GetLongestConsecutiveWires(const std::vector<int>& wire_numbers) {
-  if (wire_numbers.empty()) return {};
-
-  // Sort and remove duplicates in the input wire numbers
-  std::set<int> sorted_wires(wire_numbers.begin(), wire_numbers.end());
-
-  // Variables to track the longest sequence
-  std::vector<int> longest_sequence, current_sequence;
-
-  int previous_wire = *sorted_wires.begin();
-  current_sequence.push_back(previous_wire);
-
-  for (auto it = std::next(sorted_wires.begin()); it != sorted_wires.end(); ++it) {
-    int current_wire = *it;
-
-    // Check if the current wire is consecutive
-    if (current_wire <= previous_wire + 7) {
-      current_sequence.push_back(current_wire);
-    } else {
-      // End of a sequence, compare lengths
-      if (current_sequence.size() > longest_sequence.size()) {
-	longest_sequence = current_sequence;
-      }
-      // Start a new sequence
-      current_sequence = {current_wire};
-    }
-    previous_wire = current_wire;
-  }
-
-  // Final check to ensure longest sequence is updated
-  if (current_sequence.size() > longest_sequence.size()) {
-    longest_sequence = current_sequence;
-  }
-
-  return longest_sequence;
-}
-
-
-
-
 
 void template_maker() {
-  //   gStyle->SetOptStat(0); //Removing the stats box
+  gStyle->SetOptStat(0); //Removing the stats box
    gStyle->SetPalette(kCandy);
    TColor::InvertPalette(); 
-  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/hd_variable_test/hists_decode_data_evb01_EventBuilder1_art1_run16740_10_20240912T082517-30bef869-9d29-42a0-aa77-091ad9c1620d_Reco1Comm-20241022T190701.root");
+  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb01_EventBuilder1_art1_run16740_10_20240912T082517-30bef869-9d29-42a0-aa77-091ad9c1620d_Reco1Comm-20241114T012859.root");
   TTree *tree = (TTree*)file->Get("hitdumper/hitdumpertree");
 
   // Variables to store the data
+  Int_t *nhits = nullptr;
   std::vector<int> *waveform_number = nullptr;
   std::vector<float> *adc_on_wire = nullptr;
   std::vector<float> *time_for_waveform = nullptr;
@@ -187,6 +171,7 @@ void template_maker() {
   std::vector<double> *hit_time = nullptr;
 
   // Set branch addresses to connect the variables to the tree
+  tree->SetBranchAddress("nhits", &nhits); 
   tree->SetBranchAddress("waveform_number", &waveform_number);
   tree->SetBranchAddress("adc_on_wire", &adc_on_wire);
   tree->SetBranchAddress("time_for_waveform", &time_for_waveform);
@@ -197,50 +182,43 @@ void template_maker() {
 
   // Vector to store histograms of each waveform
   int nBins = 41;
-  std::vector<TH1D*> histograms;
-  TGraph* scalingGraph = new TGraph();
-  TH2D* heat_map = new TH2D("h_wire_vs_peak_time", "Wire Number vs Peak Time",  1700, 0, 1700, 3500, 0, 3500);
-  std::map<int, int> waveform_wire_map;
-  std::map<int, double> waveform_peak_time_map;
+  std::vector<std::vector<TH1D*>> histograms;
+  std::vector<std::map<int, int>> waveform_wire_map;
+  std::vector<std::map<int, double>> waveform_peak_time_map;
 
   // Loop over tree entries (events)
   Long64_t nEntries = tree->GetEntries();
   for (Long64_t i = 0; i < nEntries; i++) {
     tree->GetEntry(i); // Load the ith entry
 
-    // Map to store waveform data indexed by waveform number                                                                                                                                                         
+    // Map to store waveform data indexed by waveform number                                       
     std::map<int, std::vector<double>> waveform_adc_map;
-    // std::map<int, std::vector<double>> waveform_time_map;
-   
+ 
+    std::map<int, int> temp_waveform_wire_map;
+    std::map<int, double> temp_waveform_peak_time_map;  
     // Loop through each data point in the current entry and organize by waveform number
     for (size_t j = 0; j < waveform_number->size(); j++) {
-
       // Check for valid ADC and time values (filter out -9999 default)
       if (adc_on_wire->at(j) != -9999 && time_for_waveform->at(j) != -9999) {
 	// Insert ADC and time values into the corresponding waveform number
 	int wave_num = waveform_number->at(j);
 	waveform_adc_map[wave_num].push_back(adc_on_wire->at(j));
-	//	waveform_time_map[wave_num].push_back(time_for_waveform->at(j));
-	waveform_wire_map[wave_num] = wire_number->at(j);
-	waveform_peak_time_map[wave_num] = hit_time->at(j);     
+	temp_waveform_wire_map[wave_num] = wire_number->at(j);
+	temp_waveform_peak_time_map[wave_num] = hit_time->at(j);     
       }
     }
+
+    waveform_wire_map.push_back(temp_waveform_wire_map);
+    waveform_peak_time_map.push_back(temp_waveform_peak_time_map);
   
+    std::vector<TH1D*> temp_histograms;
     // For each unique waveform, create a histogram
     for (const auto &entry : waveform_adc_map) {
       int wave_num = entry.first;
-      
-      //      double peak_time = waveform_peak_time_map[wave_num];
-      // if ((peak_time > 800.0) || (peak_time < 500.0)) continue;
-
-      //      std::cout << "peak time: " << peak_time << "\n";
-
       const std::vector<double>& adc_vals = entry.second;
-      // const std::vector<double>& time_vals = waveform_time_map[wave_num];
-
-
+     
       // Create a histogram for the waveform
-      TH1D* hist = new TH1D(Form("waveform_%d", wave_num), Form("Waveform %d;Time (ticks);ADC counts", wave_num), nBins, 1, 41);
+      TH1D* hist = new TH1D(Form("waveform_%d_entry_%lld", wave_num, i), Form("Waveform %d;Time (ticks);ADC counts", wave_num), nBins, 1, 41);
 
       // Fill the histogram with ADC values at corresponding time bins
       for (size_t k = 0; k < adc_vals.size(); k++) {
@@ -248,7 +226,7 @@ void template_maker() {
       }
 
       // Add the histogram to the vector
-      histograms.push_back(hist);
+      temp_histograms.push_back(hist);
 
       // Create a canvas to draw the histogram
       TCanvas *c1 = new TCanvas(Form("c1_waveform_%d", wave_num), "Waveform", 800, 600);
@@ -262,55 +240,13 @@ void template_maker() {
       // Clean up
       delete c1;
     }
+    histograms.push_back(temp_histograms);
   }
 
-  std::vector<TH1D*> filtered_histograms;
+ 
+  TH1D* averageHistogram = CalculateAverageHistogram(histograms, nBins);
 
-  //Find the longest sequence of consecutive wire numbers
-  std::vector<int> all_wire_numbers;
-  for (const auto& entry : waveform_wire_map) {
-    all_wire_numbers.push_back(entry.second);
-  }
-  std::vector<int> longestConsecutiveWires = GetLongestConsecutiveWires(all_wire_numbers);
-  std::set<int> longestWireSet(longestConsecutiveWires.begin(), longestConsecutiveWires.end());
-
-  //  Filter histograms by both peak time and wire number
-  int wave_numb = 1;
-  for (auto hist : histograms) {
-    double peak_time = waveform_peak_time_map[wave_numb];
-    int wire_num = waveform_wire_map[wave_numb];
-
-    // Check both peak time and wire number conditions
-    if ((peak_time < 500) || (peak_time > 800) || longestWireSet.find(wire_num) == longestWireSet.end()) {
-      wave_numb++;
-      continue;
-    }
-
-    filtered_histograms.push_back(hist);
-    wave_numb++;
-  }
-
-  //  Calculate the average histogram using only filtered histograms
-  TH1D* averageHistogram = CalculateAverageHistogram(filtered_histograms, nBins);
-
-  /*
-  std::vector<TH1D*> filtered_histograms;
-
-  int wave_numb=1;
-  for (auto hist : histograms) {
-    double peak_time = waveform_peak_time_map[wave_numb];
-    if ((peak_time < 500) || (peak_time > 800)) {
-      wave_numb++;
-      continue;
-    }
-
-    filtered_histograms.push_back(hist);
-    wave_numb++;
-  }
-
-  // Calculate the average histogram (template)
-  TH1D* averageHistogram = CalculateAverageHistogram(filtered_histograms, nBins);
-  */
+ 
   // Plot and save the averaged histogram
   TCanvas *c_avg = new TCanvas("c_avg", "Average Waveform", 800, 600);
   averageHistogram->SetLineColor(kBlue-6);
@@ -318,19 +254,22 @@ void template_maker() {
   averageHistogram->Draw();
   c_avg->SaveAs(Form("%stemplate_waveform.pdf", output_dir));
   
-  // Compare individual waveforms to the average template and plot
-  int wave_num=1;
-  for (auto hist : histograms) {
-    double peak_time = waveform_peak_time_map[wave_num];
-    int wire_num= waveform_wire_map[wave_num];
-    if ((peak_time < 500) || (peak_time > 800)|| longestWireSet.find(wire_num) == longestWireSet.end()) {
-      wave_num++;
-      continue;
-    }
+  // Compare individual waveforms to the average template and plot                                                                                                                                          
+for (int i = 0; i < nEntries; i++) {
+  tree->GetEntry(i);
+  if (nhits == 0) {
+    std::cout << "no waveforms or hits for entry " << i << std::endl;
+    continue;
+  } 
 
-   
-    double hit_tim=waveform_peak_time_map[wave_num]; 
-    CompareWaveformToTemplate(hist, averageHistogram, output_dir, wave_num,wire_num,scalingGraph, hit_tim, heat_map);
+  TGraph* scalingGraph = new TGraph();
+  TH2D* heat_map = new TH2D("h_wire_vs_peak_time", "Wire Number vs Peak Time",  1700, 0, 1700, 3500,0, 3500);
+          
+  int wave_num=1;
+  for (auto hist : histograms.at(i)) {
+    double hit_tim=waveform_peak_time_map.at(i)[wave_num];
+    int wire_num = waveform_wire_map.at(i)[wave_num];
+    CompareWaveformToTemplate(hist, averageHistogram, output_dir, wave_num,wire_num,scalingGraph,hit_tim, heat_map);
     wave_num++;
   }
     
@@ -342,23 +281,20 @@ void template_maker() {
   scalingGraph->SetMarkerSize(0.75);
   scalingGraph->GetXaxis()->SetLimits(0, 1700);
   scalingGraph->Draw("AP");
-  c_scaling->SaveAs(Form("%sscaling_factor_vs_wire_number.pdf", output_dir));
+  c_scaling->SaveAs(Form("%sscaling_factor_vs_wire_number_entry_%d.pdf", output_dir, i));
 
   TCanvas* c_wire_vs_time = new TCanvas("c_wire_vs_time", "Wire vs Peak Time", 900, 600);
   heat_map->GetXaxis()->SetTitle("Wire Number");
   heat_map->GetYaxis()->SetTitle("Waveform Time (Ticks)");
   // heat_map->GetYaxis()->SetRangeUser(500, 800);
   heat_map->Draw("COLZ");
-  c_wire_vs_time->SaveAs(Form("%sheat_map.pdf", output_dir));
+  c_wire_vs_time->SaveAs(Form("%sheat_map_entry_%d.pdf", output_dir, i));
 
   // Clean up
-  for (auto hist : histograms) {
-    delete hist;
-  }
-  delete c_avg;
-  delete averageHistogram;
-  delete file;
+  delete scalingGraph;
+  delete heat_map;
+ 
+ }
 }
-
 
 
