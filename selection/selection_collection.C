@@ -47,7 +47,7 @@ void Selection_collection()
   gStyle->SetOptStat(0); //Removing the stats box
   gStyle->SetPalette(kCandy);
   TColor::InvertPalette(); 
-  TFile  myFile("/exp/sbnd/data/users/arellano/tpc_comm/production_231127_brazilCM/sbnd_crt_lifetime/trees/muon_hitdumper_NS_elifetime15ms_sce.root");
+  TFile  myFile("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb04_process2_EventBuilder4_p2_art1_run16740_3_20240912T081019-2106a30f-6e4b-4c39-b710-5286b5565346_Reco1Comm-20241204T105223.root");
   TTree* myTree = (TTree*) myFile.Get("hitdumper/hitdumpertree");
   vector<double>*  ct_x1=0;
   vector<double>*  ct_x2=0;
@@ -55,35 +55,35 @@ void Selection_collection()
   vector<double>*  ct_y2=0;
   vector<double>*  ct_z1=0;
   vector<double>*  ct_z2=0;
-  vector<double>*  chit_x=0;
-  vector<double>*  chit_y=0;
-  vector<double>*  chit_z=0;
-  vector<double>* muontrk_type=0;
-  vector<double>*muontrk_theta_xz=0;
-  vector<double>*muontrk_theta_yz=0;
-  vector<double>*muontrk_tpc=0;
-  myTree->SetBranchAddress("ct_x1", &ct_x1);
-  myTree->SetBranchAddress("ct_x2", &ct_x2);
-  myTree->SetBranchAddress("ct_y1", &ct_y1);
-  myTree->SetBranchAddress("ct_y2", &ct_y2);
-  myTree->SetBranchAddress("ct_z1", &ct_z1);
-  myTree->SetBranchAddress("ct_z2", &ct_z2); 
-  myTree->SetBranchAddress("chit_x", &chit_x);
-  myTree->SetBranchAddress("chit_y", &chit_y);
-  myTree->SetBranchAddress("chit_z", &chit_z); 
-  myTree->SetBranchAddress("muontrk_type", &muontrk_type);
-  myTree->SetBranchAddress("muontrk_theta_xz", &muontrk_theta_xz);
-  myTree->SetBranchAddress("muontrk_theta_yz", &muontrk_theta_yz);
-  myTree->SetBranchAddress("muontrk_tpc", &muontrk_tpc);
+  //  vector<double>*  chit_x=0;
+  //  vector<double>*  chit_y=0;
+  // vector<double>*  chit_z=0;
+  //  vector<double>* muontrk_type=0;
+  // vector<double>*muontrk_theta_xz=0;
+  // vector<double>*muontrk_theta_yz=0;
+  //  vector<double>*muontrk_tpc=0;
+  myTree->SetBranchAddress("crt_track_x1", &ct_x1);
+  myTree->SetBranchAddress("crt_track_x2", &ct_x2);
+  myTree->SetBranchAddress("crt_track_y1", &ct_y1);
+  myTree->SetBranchAddress("crt_track_y2", &ct_y2);
+  myTree->SetBranchAddress("crt_track_z1", &ct_z1);
+  myTree->SetBranchAddress("crt_track_z2", &ct_z2); 
+  //  myTree->SetBranchAddress("chit_x", &chit_x);
+  // myTree->SetBranchAddress("chit_y", &chit_y);
+  // myTree->SetBranchAddress("chit_z", &chit_z); 
+  // myTree->SetBranchAddress("muontrk_type", &muontrk_type);
+  // myTree->SetBranchAddress("muontrk_theta_xz", &muontrk_theta_xz);
+  // myTree->SetBranchAddress("muontrk_theta_yz", &muontrk_theta_yz);
+  // myTree->SetBranchAddress("muontrk_tpc", &muontrk_tpc);
   gROOT->cd(0);
-  TH2F *x_y_Hit_1 = new TH2F("xy1","xy1",70, -360, 360, 70, -360, 360);
-  TH2F *x_y_Hit_2 = new TH2F("xy3","xy3",70, -360, 360, 70, -360, 360);
-  TH1F *TPC_Theta_xz =new TH1F("theta_xz_1", "theta_xz_1", 50, -30, 30);
-  TH1F *TPC_Theta_yz =new TH1F("theta_yz_1", "theta_yz_1", 50, -30,30);
-  TH1F *CRT_Theta_xz =new TH1F("crttheta_xz_1", "crttheta_xz_1", 50, -30, 30);
-  TH1F *CRT_Theta_yz =new TH1F("crttheta_yz_1", "crttheta_yz_1", 50, -30,30);
-  TH2F *x_z_Hit_1 = new TH2F("xz1","xz1",70, -420, 420, 70, -200, 800);
-  TH2F *x_z_Hit_2 = new TH2F("xz2","xz2",70, -420, 420, 70, -200, 800);
+  // TH2F *x_y_Hit_1 = new TH2F("xy1","xy1",70, -360, 360, 70, -360, 360);
+  // TH2F *x_y_Hit_2 = new TH2F("xy3","xy3",70, -360, 360, 70, -360, 360);
+  // TH1F *TPC_Theta_xz =new TH1F("theta_xz_1", "theta_xz_1", 50, -30, 30);
+  // TH1F *TPC_Theta_yz =new TH1F("theta_yz_1", "theta_yz_1", 50, -30,30);
+  // TH1F *CRT_Theta_xz =new TH1F("crttheta_xz_1", "crttheta_xz_1", 50, -30, 30);
+  // TH1F *CRT_Theta_yz =new TH1F("crttheta_yz_1", "crttheta_yz_1", 50, -30,30);
+  // TH2F *x_z_Hit_1 = new TH2F("xz1","xz1",70, -420, 420, 70, -200, 800);
+  // TH2F *x_z_Hit_2 = new TH2F("xz2","xz2",70, -420, 420, 70, -200, 800);
 
  
   vector<TVector3*> track_starts;
@@ -96,9 +96,9 @@ void Selection_collection()
   for (int iEnt = 0; iEnt < nEntries; iEnt++) { //Big loop of entries
     myTree->GetEntry(iEnt); // Gets the next entry (filling the linked variables)
 
-    vector<int> Matched_Tracks;
+    // vector<int> Matched_Tracks;
     //*********************Modifying TPC Angles ****************************//
-    vector<double>* Modified_TPC_theta_yz=muontrk_theta_yz;
+    /*  vector<double>* Modified_TPC_theta_yz=muontrk_theta_yz;
     vector<double>* Modified_TPC_theta_xz=muontrk_theta_xz;
     for(size_t t=0; t<muontrk_type->size(); ++t){
       if ( muontrk_theta_xz->at(t) > 90 && muontrk_tpc->at(t) == 0 ) {
@@ -118,7 +118,7 @@ void Selection_collection()
 	Modified_TPC_theta_yz->push_back( muontrk_theta_yz->at(t) - 180.);
       }
     }
-
+    */
     //***************CRT Track Loop ***************//                                                                                                                                                               
     for (size_t c=0; c < ct_x1->size(); ++c) {
 
@@ -127,41 +127,41 @@ void Selection_collection()
       double dx;
       double dy;
       double dz;
-      double CRT_theta_xz;
-      double CRT_theta_yz;
-      double modified_theta_xz_CRT;
-      double modified_theta_yz_CRT;
-      double Track_Length; 
+      // double CRT_theta_xz;
+      // double CRT_theta_yz;
+      // double modified_theta_xz_CRT;
+      // double modified_theta_yz_CRT;
+      // double Track_Length; 
       int track_colour;
       //Calculating Variables
-      dx =ct_x2->at(c) - ct_x1->at(c);
-      dy =ct_y2->at(c) - ct_y1->at(c);
-      dz =ct_z2->at(c) - ct_z1->at(c);
-      Track_Length=sqrt((dx*dx)+(dy*dy)+(dz*dz));
-      CRT_theta_xz= atan2(dx,dz)*(180/TMath::Pi());
-      CRT_theta_yz= atan2(dy,dz)*(180/TMath::Pi());
-      modified_theta_xz_CRT = CRT_theta_xz;
-      if ( CRT_theta_xz < -90 ) {
-	modified_theta_xz_CRT = CRT_theta_xz + 180.;
-      }
-      if ( CRT_theta_xz > 90 ) {
-	modified_theta_xz_CRT = CRT_theta_xz - 180.;
-      }
-      modified_theta_yz_CRT = CRT_theta_yz;
-      if ( CRT_theta_yz < -90 ) {
-	modified_theta_yz_CRT = CRT_theta_yz + 180.;
-      }
-      if ( CRT_theta_yz > 90 ) {
-	modified_theta_yz_CRT = CRT_theta_yz - 180.;
-      }
+      // dx =ct_x2->at(c) - ct_x1->at(c);
+      // dy =ct_y2->at(c) - ct_y1->at(c);
+      // dz =ct_z2->at(c) - ct_z1->at(c);
+      // Track_Length=sqrt((dx*dx)+(dy*dy)+(dz*dz));
+      // CRT_theta_xz= atan2(dx,dz)*(180/TMath::Pi());
+      // CRT_theta_yz= atan2(dy,dz)*(180/TMath::Pi());
+      // modified_theta_xz_CRT = CRT_theta_xz;
+      // if ( CRT_theta_xz < -90 ) {
+      //	modified_theta_xz_CRT = CRT_theta_xz + 180.;
+      // }
+      // if ( CRT_theta_xz > 90 ) {
+      //	modified_theta_xz_CRT = CRT_theta_xz - 180.;
+      // }
+      // modified_theta_yz_CRT = CRT_theta_yz;
+      // if ( CRT_theta_yz < -90 ) {
+      //	modified_theta_yz_CRT = CRT_theta_yz + 180.;
+      // }
+      // if ( CRT_theta_yz > 90 ) {
+      //	modified_theta_yz_CRT = CRT_theta_yz - 180.;
+      // }
       //Applying Cuts
-      if(Cut_NS_Function(ct_x1->at(c),ct_y1->at(c),ct_z1->at(c),ct_x2->at(c),ct_y2->at(c),ct_z2->at(c)) && Cut_Collection_Angle_yz(modified_theta_yz_CRT)){
+      if(Cut_NS_Function(ct_x1->at(c),ct_y1->at(c),ct_z1->at(c),ct_x2->at(c),ct_y2->at(c),ct_z2->at(c))){
 	CutResult=true;
   
-	x_y_Hit_1->Fill(ct_x1->at(c),ct_y1->at(c));
-	x_y_Hit_2->Fill(ct_x2->at(c),ct_y2->at(c));
-	x_z_Hit_1->Fill(ct_x1->at(c),ct_z1->at(c));
-	x_z_Hit_2->Fill(ct_x2->at(c),ct_z2->at(c));
+	//	x_y_Hit_1->Fill(ct_x1->at(c),ct_y1->at(c));
+	//	x_y_Hit_2->Fill(ct_x2->at(c),ct_y2->at(c));
+	//	x_z_Hit_1->Fill(ct_x1->at(c),ct_z1->at(c));
+	//	x_z_Hit_2->Fill(ct_x2->at(c),ct_z2->at(c));
 
 	TVector3* track_start= new TVector3(ct_x1->at(c),ct_y1->at(c),ct_z1->at(c));
 	TVector3* track_end= new TVector3(ct_x2->at(c),ct_y2->at(c),ct_z2->at(c));
@@ -169,12 +169,12 @@ void Selection_collection()
 	track_starts.push_back(track_start);
 	track_ends.push_back(track_end);
 
-	CRT_Theta_xz->Fill(modified_theta_xz_CRT);
-	CRT_Theta_yz->Fill(modified_theta_yz_CRT);
+	//	CRT_Theta_xz->Fill(modified_theta_xz_CRT);
+	//	CRT_Theta_yz->Fill(modified_theta_yz_CRT);
 
 
-	std::string index = Form("event%i_track%zu_angle%f",iEnt,c,modified_theta_yz_CRT);
-	event_display(track_start,track_end,index);
+	//	std::string index = Form("event%i_track%zu_angle%f",iEnt,c,iEnt);
+	//	event_display(track_start,track_end,index);
 
 	if(ct_z1->at(c)>ct_z2->at(c)){                                                                                                                                                                       
 	  track_type.push_back(kBlue-6);
@@ -185,7 +185,7 @@ void Selection_collection()
      
       
 	//******************TPC Track Matching *********************************//
-
+	/*
 	int Closest_Index= Closest_Track(Modified_TPC_theta_yz, modified_theta_yz_CRT);
 	if(std::find(Matched_Tracks.begin(),Matched_Tracks.end(),Closest_Index)== Matched_Tracks.end()&& !(Closest_Index==-1)){
 	  Matched_Tracks.push_back(Closest_Index);
@@ -193,7 +193,7 @@ void Selection_collection()
 	  Double_t theta_yz = Modified_TPC_theta_yz->at(Closest_Index);
 	  TPC_Theta_xz->Fill(theta_xz);
 	  TPC_Theta_yz->Fill(theta_yz);     
-
+	*/
 	}
       }// cut if loop
     }// end of CRT track loop                                                                                                                                                                                        
