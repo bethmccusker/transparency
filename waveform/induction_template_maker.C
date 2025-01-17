@@ -8,7 +8,7 @@
 
 TH1D* CalculateAverageHistogram(const std::vector<std::vector<TH1D*>>& histograms, int nBins) {
   // Create the final histogram to store averages
-  auto averageHistogram = new TH1D("AverageHistogram", "Average Waveform;Time (ticks);ADC counts", nBins, 1, 67);
+  auto averageHistogram = new TH1D("AverageHistogram", "Average Waveform;Time (ticks);ADC counts", nBins, 1, 41);
 
   int numEvents = histograms.size();
   if (numEvents == 0) {
@@ -139,8 +139,8 @@ void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, 
   double troughScalingFactor = scalingFactors.second;
 
   // Log the scaling factors
-  std::cout << "Scaling factor for peak region of waveform " << wave_num << ": " << peakScalingFactor << std::endl;
-  std::cout << "Scaling factor for trough region of waveform " << wave_num << ": " << troughScalingFactor << std::endl;
+   std::cout << "Scaling factor for peak region of waveform " << wave_num << ": " << peakScalingFactor << std::endl;
+   std::cout << "Scaling factor for trough region of waveform " << wave_num << ": " << troughScalingFactor << std::endl;
 
   scaling_factors->Fill(peakScalingFactor, troughScalingFactor);
 
@@ -193,7 +193,7 @@ void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, 
   legend->Draw();
 
   // Save the comparison plot
-  // c_compare->SaveAs(Form("%scomparison_waveform_%d.pdf", output_dir, wave_num));
+   c_compare->SaveAs(Form("%scomparison_waveform_%d.pdf", output_dir, wave_num));
 
   // Clean up
   delete c_compare;
@@ -205,7 +205,7 @@ void induction_template_maker() {
   gStyle->SetOptStat(0); //Removing the stats box
   gStyle->SetPalette(kCandy);
   TColor::InvertPalette();
-  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb01_EventBuilder1_art1_run16740_10_20240912T082517-30bef869-9d29-42a0-aa77-091ad9c1620d_Reco1Comm-20241114T021403.root");
+  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb04_process2_EventBuilder4_p2_art1_run16740_3_20240912T081019-2106a30f-6e4b-4c39-b710-5286b5565346_Reco1Comm-20241204T110743.root");
   TTree *tree = (TTree*)file->Get("hitdumper/hitdumpertree");
 
   // Variables to store the data
@@ -237,7 +237,7 @@ void induction_template_maker() {
   for (Long64_t i = 0; i < nEntries; i++) {
     tree->GetEntry(i); // Load the ith entry
 
-    std::cout << "entry " << i << " has this many hits: " << nhits << std::endl;
+    // std::cout << "entry " << i << " has this many hits: " << nhits << std::endl;
 
     // Map to store waveform data indexed by waveform number                              
     std::map<int, std::vector<double>> waveform_adc_map;
@@ -285,13 +285,13 @@ void induction_template_maker() {
 
       // Save the plot as a PNG file with the output directory
       //      c1->SaveAs(Form("%swaveform_%d.pdf", output_dir, wave_num));
-
+      std::cout<<" Waveform Number "<<wave_num<<std::endl;
       // Clean up
       delete c1;
     }
     histograms.push_back(temp_histograms);
   }
-  std::vector<std::vector<TH1D*>> filtered_histograms;
+  /* std::vector<std::vector<TH1D*>> filtered_histograms;
   for (int i = 0; i < nEntries; i++) {
     tree->GetEntry(i);
     if (nhits == 0) {
@@ -309,9 +309,9 @@ void induction_template_maker() {
     filtered_histograms.push_back({hist});
     wave_numb++;
   }
-  }
+  }*/
   // Calculate the average histogram (template)
-  TH1D* averageHistogram = CalculateAverageHistogram(filtered_histograms, nBins);
+  TH1D* averageHistogram = CalculateAverageHistogram(histograms, nBins);
  
 
   // Plot and save the averaged histogram
@@ -321,6 +321,8 @@ void induction_template_maker() {
   averageHistogram->Draw();
   c_avg->SaveAs(Form("%stemplate_waveform.pdf", output_dir));
   
+  std::vector<double> eventScalingFactorsPeak;
+  std::vector<double> eventScalingFactorsTrough;
   // Compare individual waveforms to the average template and plot                                                                  
   for (int i = 0; i < nEntries; i++) {
     tree->GetEntry(i);
@@ -334,17 +336,35 @@ void induction_template_maker() {
     TH2D* scaling_factors = new TH2D("peak", "trough",  75, 0, 2, 75, 0, 2);
                                                                              
   int wave_num=1;
+  double sumScalingFactorsPeak=0.0;
+  double sumScalingFactorsTrough = 0.0;
+  int countScalingFactors = 0;
   for (auto hist : histograms.at(i)) {
-    int wire_number = waveform_wire_map.at(i)[wave_num];
+    /* int wire_number = waveform_wire_map.at(i)[wave_num];
     if ((wire_number < 800) || (wire_number > 1300)) {
       wave_num++;
       continue;
-    }
+      }*/
     int wire_num = waveform_wire_map.at(i)[wave_num];
     double hit_tim=waveform_peak_time_map.at(i)[wave_num];     
-std::cout << "wire number for " << wave_num << ": " << wire_num << std::endl;  
+    //std::cout << "wire number for " << wave_num << ": " << wire_num << std::endl;  
     CompareWaveformToTemplate(hist, averageHistogram, output_dir, wave_num,wire_num,scalingGraph,hit_tim, heat_map, scaling_factors);
+    std::pair<double, double> scalingFactors = CalculatePeakTroughScalingFactor(hist, averageHistogram);
+    double peakScalingFactor = scalingFactors.first;
+    double troughScalingFactor = scalingFactors.second;
+    sumScalingFactorsPeak += peakScalingFactor;
+    sumScalingFactorsTrough += troughScalingFactor;
+    countScalingFactors++;
     wave_num++;
+  }
+
+  if (countScalingFactors > 0) {
+    double averageScalingFactorPeak = sumScalingFactorsPeak / countScalingFactors;
+    double averageScalingFactorTrough = sumScalingFactorsTrough / countScalingFactors;
+    eventScalingFactorsPeak.push_back(averageScalingFactorPeak);
+    eventScalingFactorsTrough.push_back(averageScalingFactorTrough);
+    std::cout << "Average peak scaling factor for entry " << i << ": " << averageScalingFactorPeak << std::endl;
+    std::cout << "Average trough scaling factor for entry " << i << ": " << averageScalingFactorTrough << std::endl;
   }
 
   TCanvas *c_scaling = new TCanvas("c_scaling", "Scaling Factor vs Wire Number", 800, 600);
@@ -354,19 +374,19 @@ std::cout << "wire number for " << wave_num << ": " << wire_num << std::endl;
   scalingGraph->SetMarkerSize(0.75);
   scalingGraph->GetXaxis()->SetLimits(0, 1700);
   scalingGraph->Draw("AP");
-  c_scaling->SaveAs(Form("%sscaling_factor_vs_wire_number_entry_%d.pdf", output_dir,i));
+  // c_scaling->SaveAs(Form("%sscaling_factor_vs_wire_number_entry_%d.pdf", output_dir,i));
   
   TCanvas* c_wire_vs_time = new TCanvas("c_wire_vs_time", "Wire vs Peak Time", 900, 600);
   heat_map->Draw("COLZ");
   heat_map->GetXaxis()->SetTitle("Wire Number");
   heat_map->GetYaxis()->SetTitle("Waveform Time (Ticks)");
-  c_wire_vs_time->SaveAs(Form("%sheat_map_entry_%d.pdf", output_dir,i));
+  //  c_wire_vs_time->SaveAs(Form("%sheat_map_entry_%d.pdf", output_dir,i));
 
   TCanvas* c_scaling_factors = new TCanvas("", "", 900, 600);
   scaling_factors->Draw("COLZ");
   scaling_factors->GetXaxis()->SetTitle("Peak Scaling");
   scaling_factors->GetYaxis()->SetTitle("Trough Scaling");
-  c_scaling_factors->SaveAs(Form("%sscaling_factors_entry_%d.pdf", output_dir,i));
+  //  c_scaling_factors->SaveAs(Form("%sscaling_factors_entry_%d.pdf", output_dir,i));
 
   // Clean up
   delete scalingGraph;

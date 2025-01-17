@@ -15,7 +15,7 @@ void chit_eventdisplaytest()
   const TString SaveDir="/exp/sbnd/data/users/bethanym/wire_transparency/Selection_CRT";
   //  gStyle->SetOptStat(0); //Removing the stats box
   TColor::InvertPalette(); 
-  TFile  myFile("/exp/sbnd/data/users/bethanym/wire_transparency/hitdumper_test/output_files/hists_prodgenie_cosmic_rockbox_sbnd_GenieGen-20240509T192437_G4-20240509T204452_DetSim-20240510T013239_Reco1Comm-20240520T114235.root");
+  TFile  myFile("/exp/sbnd/data/users/bethanym/wire_transparency/hd_variable_test/hists_decode_data_evb01_EventBuilder1_art1_run16740_10_20240912T082517-30bef869-9d29-42a0-aa77-091ad9c1620d_Reco1Comm-20241029T161501.root");
   TTree* myTree = (TTree*) myFile.Get("hitdumper/hitdumpertree");
   vector<double>*  ct_x1=0;
   vector<double>*  ct_x2=0;
@@ -23,20 +23,14 @@ void chit_eventdisplaytest()
   vector<double>*  ct_y2=0;
   vector<double>*  ct_z1=0;
   vector<double>*  ct_z2=0;
-  vector<double>*  chit_x=0;
-  vector<double>*  chit_y=0;
-  vector<double>*  chit_z=0;
   int track_colour;
   vector<int> track_type;
-  myTree->SetBranchAddress("ct_x1", &ct_x1);
-  myTree->SetBranchAddress("ct_x2", &ct_x2);
-  myTree->SetBranchAddress("ct_y1", &ct_y1);
-  myTree->SetBranchAddress("ct_y2", &ct_y2);
-  myTree->SetBranchAddress("ct_z1", &ct_z1);
-  myTree->SetBranchAddress("ct_z2", &ct_z2); 
-  myTree->SetBranchAddress("chit_x", &chit_x);
-  myTree->SetBranchAddress("chit_y", &chit_y);
-  myTree->SetBranchAddress("chit_z", &chit_z); 
+  myTree->SetBranchAddress("crt_track_x1", &ct_x1);
+  myTree->SetBranchAddress("crt_track_x2", &ct_x2);
+  myTree->SetBranchAddress("crt_track_y1", &ct_y1);
+  myTree->SetBranchAddress("crt_track_y2", &ct_y2);
+  myTree->SetBranchAddress("crt_track_z1", &ct_z1);
+  myTree->SetBranchAddress("crt_track_z2", &ct_z2); 
   gROOT->cd(0);
   int nEntries = myTree->GetEntries(); // Get the number of entries in this tree
   vector<TVector3*> track_starts;

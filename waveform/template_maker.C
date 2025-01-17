@@ -5,9 +5,10 @@
 #include "TH1F.h"
 #include <iostream>
 
+//*********************************** Functions Start ******************************************//
 TH1D* CalculateAverageHistogram(const std::vector<std::vector<TH1D*>>& histograms, int nBins) {
   // Create the final histogram to store averages
-  auto averageHistogram = new TH1D("AverageHistogram", "Average Waveform;Time (ticks);ADC counts", nBins, 1, 67);
+  auto averageHistogram = new TH1D("AverageHistogram", "Average Waveform;Time (ticks);ADC counts", nBins, 1, 41);
 
   int numEvents = histograms.size();
   if (numEvents == 0) {
@@ -110,7 +111,7 @@ double CalculateScalingFactor(TH1D* individualWaveform, TH1D* averageTemplate) {
 // Function to compare an individual waveform to the template
 void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, const char* output_dir, int wave_num,int wire_num, TGraph* scalingGraph, double hit_tim, TH2D* heat_map) {
   double scalingFactor = CalculateScalingFactor(individualWaveform, averageTemplate);
-  std::cout << "Ratio of aplitudes for waveform " << wave_num << ": " << scalingFactor << std::endl;
+   std::cout << "Ratio of aplitudes for waveform " << wave_num << ": " << scalingFactor << std::endl;
   //Calculate integral scale factor
   double integralScale = CalculateIntegral(individualWaveform, averageTemplate);
    std::cout << "Ratio of integrals for waveform " << wave_num << ": " << integralScale << std::endl;
@@ -121,7 +122,7 @@ void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, 
 
   // Calculate Chi-squared
   double chi2 = CalculateChiSquared(individualWaveform, Template);
-  std::cout << "Chi-squared for waveform " << wave_num << ": " << chi2 << std::endl;
+   std::cout << "Chi-squared for waveform " << wave_num << ": " << chi2 << std::endl;
 
   heat_map->Fill(wire_num, hit_tim);
 
@@ -146,7 +147,7 @@ void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, 
   legend->Draw();
 
   // Save the comparison plot
-  //     c_compare->SaveAs(Form("%scomparison_waveform_%d.pdf", output_dir, wave_num));
+  c_compare->SaveAs(Form("%scomparison_waveform_%d.pdf", output_dir, wave_num));
 
   // Clean up
   delete c_compare;
@@ -154,12 +155,31 @@ void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, 
 }
 
 
+// Function to find the intersection of two lines in the form Z = mY + c
+std::pair<double, double> findIntersection(double m1, double c1, double m2, double c2) {
+  // Check if the lines are parallel
+  if (m1 == m2) {
+    std::cerr << "The lines are parallel and do not intersect." << std::endl;
+    return {std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN()};
+  }
 
+  // Calculate the intersection point
+  double y_intersect = (c2 - c1) / (m1 - m2); // Solve for Y
+  double z_intersect = m1 * y_intersect + c1; // Solve for Z using either line equation
+
+  return {y_intersect, z_intersect};
+}
+
+
+//*********************************************Functions End ***************************************************//
+
+
+//******************************************** Main Body Start ***********************************************//
 void template_maker() {
   gStyle->SetOptStat(0); //Removing the stats box
    gStyle->SetPalette(kCandy);
    TColor::InvertPalette(); 
-  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb01_EventBuilder1_art1_run16740_10_20240912T082517-30bef869-9d29-42a0-aa77-091ad9c1620d_Reco1Comm-20241114T012859.root");
+  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb04_process2_EventBuilder4_p2_art1_run16740_3_20240912T081019-2106a30f-6e4b-4c39-b710-5286b5565346_Reco1Comm-20241204T105223.root");
   TTree *tree = (TTree*)file->Get("hitdumper/hitdumpertree");
 
   // Variables to store the data
@@ -169,7 +189,7 @@ void template_maker() {
   std::vector<float> *time_for_waveform = nullptr;
   std::vector<int> *wire_number = nullptr;
   std::vector<double> *hit_time = nullptr;
-
+ 
   // Set branch addresses to connect the variables to the tree
   tree->SetBranchAddress("nhits", &nhits); 
   tree->SetBranchAddress("waveform_number", &waveform_number);
@@ -236,7 +256,7 @@ void template_maker() {
 
       // Save the plot as a PNG file with the output directory
       //          c1->SaveAs(Form("%swaveform_%d.pdf", output_dir, wave_num));
-
+      std::cout<<" Waveform Number "<<wave_num<<std::endl;
       // Clean up
       delete c1;
     }
@@ -253,7 +273,9 @@ void template_maker() {
   averageHistogram->SetLineWidth(3);
   averageHistogram->Draw();
   c_avg->SaveAs(Form("%stemplate_waveform.pdf", output_dir));
-  
+
+
+  std::vector<double> eventScalingFactors;  
   // Compare individual waveforms to the average template and plot                                                                                                                                          
 for (int i = 0; i < nEntries; i++) {
   tree->GetEntry(i);
@@ -266,13 +288,26 @@ for (int i = 0; i < nEntries; i++) {
   TH2D* heat_map = new TH2D("h_wire_vs_peak_time", "Wire Number vs Peak Time",  1700, 0, 1700, 3500,0, 3500);
           
   int wave_num=1;
+  double sumScalingFactors = 0.0;
+  int countScalingFactors = 0;
   for (auto hist : histograms.at(i)) {
     double hit_tim=waveform_peak_time_map.at(i)[wave_num];
     int wire_num = waveform_wire_map.at(i)[wave_num];
     CompareWaveformToTemplate(hist, averageHistogram, output_dir, wave_num,wire_num,scalingGraph,hit_tim, heat_map);
+   
+    double scalingFactor = CalculateScalingFactor(hist, averageHistogram);
+    sumScalingFactors += scalingFactor;
+    countScalingFactors++;
+
     wave_num++;
   }
     
+  if (countScalingFactors > 0) {
+    double averageScalingFactor = sumScalingFactors / countScalingFactors;
+    eventScalingFactors.push_back(averageScalingFactor);
+    std::cout << "Average scaling factor for entry " << i << ": " << averageScalingFactor << std::endl;
+  }
+
   // Plot and save the scaling factor vs wire number
   TCanvas *c_scaling = new TCanvas("c_scaling", "Scaling Factor vs Wire Number", 800, 600);
   scalingGraph->SetTitle("Scaling Factor vs Wire Number;Wire Number;Scaling Factor");
@@ -281,14 +316,14 @@ for (int i = 0; i < nEntries; i++) {
   scalingGraph->SetMarkerSize(0.75);
   scalingGraph->GetXaxis()->SetLimits(0, 1700);
   scalingGraph->Draw("AP");
-  c_scaling->SaveAs(Form("%sscaling_factor_vs_wire_number_entry_%d.pdf", output_dir, i));
+  //  c_scaling->SaveAs(Form("%sscaling_factor_vs_wire_number_entry_%d.pdf", output_dir, i));
 
   TCanvas* c_wire_vs_time = new TCanvas("c_wire_vs_time", "Wire vs Peak Time", 900, 600);
   heat_map->GetXaxis()->SetTitle("Wire Number");
   heat_map->GetYaxis()->SetTitle("Waveform Time (Ticks)");
   // heat_map->GetYaxis()->SetRangeUser(500, 800);
   heat_map->Draw("COLZ");
-  c_wire_vs_time->SaveAs(Form("%sheat_map_entry_%d.pdf", output_dir, i));
+  //  c_wire_vs_time->SaveAs(Form("%sheat_map_entry_%d.pdf", output_dir, i));
 
   // Clean up
   delete scalingGraph;

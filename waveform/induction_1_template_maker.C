@@ -9,7 +9,7 @@
 
 TH1D* CalculateAverageHistogram(const std::vector<std::vector<TH1D*>>& histograms, int nBins) {
   // Create the final histogram to store averages
-  auto averageHistogram = new TH1D("AverageHistogram", "Average Waveform;Time (ticks);ADC counts", nBins, 1, 67);
+  auto averageHistogram = new TH1D("AverageHistogram", "Average Waveform;Time (ticks);ADC counts", nBins, 1, 81);
 
   int numEvents = histograms.size();
   if (numEvents == 0) {
@@ -51,6 +51,32 @@ TH1D* CalculateAverageHistogram(const std::vector<std::vector<TH1D*>>& histogram
 
   std::cout << totalHistograms << "   Number of histograms in the full template" << std::endl;
   return averageHistogram;
+}
+
+TH1D* AlignToDownPeak(TH1D* waveform, int targetBin) {
+  if (!waveform) return nullptr;
+
+  // Find the bin with the minimum (down-peak) value
+  int downPeakBin = waveform->GetMinimumBin();
+  if (downPeakBin == 0) return waveform; // No valid minimum found, return original
+
+  // Calculate the shift needed to align the down-peak with the target bin
+  int shift = targetBin - downPeakBin;
+
+  // Create a new histogram to store the shifted waveform
+  TH1D* alignedWaveform = (TH1D*)waveform->Clone(Form("%s_aligned", waveform->GetName()));
+  alignedWaveform->Reset(); // Clear contents
+
+  // Shift bin contents
+  int nBins = waveform->GetNbinsX();
+  for (int iBin = 1; iBin <= nBins; ++iBin) {
+    int shiftedBin = iBin + shift;
+    if (shiftedBin >= 1 && shiftedBin <= nBins) {
+      alignedWaveform->SetBinContent(shiftedBin, waveform->GetBinContent(iBin));
+    }
+  }
+
+  return alignedWaveform;
 }
 
 
@@ -139,8 +165,8 @@ void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, 
   double troughScalingFactor = scalingFactors.second;
 
   // Log the scaling factors
-  std::cout << "Scaling factor for peak region of waveform " << wave_num << ": " << peakScalingFactor << std::endl;
-  std::cout << "Scaling factor for trough region of waveform " << wave_num << ": " << troughScalingFactor << std::endl;
+   std::cout << "Scaling factor for peak region of waveform " << wave_num << ": " << peakScalingFactor << std::endl;
+   std::cout << "Scaling factor for trough region of waveform " << wave_num << ": " << troughScalingFactor << std::endl;
 
   scaling_factors->Fill(peakScalingFactor, troughScalingFactor);
 
@@ -194,7 +220,7 @@ void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, 
   legend->Draw();
   */
   // Save the comparison plot
-  //  c_compare->SaveAs(Form("%scomparison_waveform_%d.pdf", output_dir, wave_num));
+    c_compare->SaveAs(Form("%scomparison_waveform_%d.pdf", output_dir, wave_num));
 
   // Clean up
   delete c_compare;
@@ -206,8 +232,8 @@ void induction_1_template_maker() {
   gStyle->SetOptStat(0); //Removing the stats box
    gStyle->SetPalette(kCandy);
    TColor::InvertPalette();
-  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb01_EventBuilder1_art1_run16740_10_20240912T082517-30bef869-9d29-42a0-aa77-091ad9c1620d_Reco1Comm-20241107T213328.root");
-  TTree *tree = (TTree*)file->Get("hitdumper/hitdumpertree;3");
+  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb04_process2_EventBuilder4_p2_art1_run16740_3_20240912T081019-2106a30f-6e4b-4c39-b710-5286b5565346_Reco1Comm-20241204T112223.root");
+  TTree *tree = (TTree*)file->Get("hitdumper/hitdumpertree");
 
   // Variables to store the data
   Int_t *nhits = nullptr;
@@ -228,7 +254,7 @@ void induction_1_template_maker() {
   const char *output_dir = "/exp/sbnd/data/users/bethanym/wire_transparency/templateFitting/";
 
   // Vector to store histograms of each waveform
-  int nBins = 67;
+  int nBins = 81;
   std::vector<std::vector<TH1D*>> histograms;
   std::vector<std::map<int, int>> waveform_wire_map;
   std::vector<std::map<int, double>> waveform_peak_time_map;
@@ -238,13 +264,7 @@ void induction_1_template_maker() {
   Long64_t nEntries = tree->GetEntries();
   for (Long64_t i = 0; i < nEntries; i++) {
     tree->GetEntry(i); // Load the ith entry
-
-    ///if (nhits == 0) {
-    ///  std::cout << "oops, nothing here!!" << std::endl;
-    ///  continue;
-    ///}
-    std::cout << "entry " << i << " has this many hits: " << nhits << std::endl;
-
+  
     // Map to store waveform data indexed by waveform number                                                                                                                                                         
     std::map<int, std::vector<double>> waveform_adc_map;
     //std::map<int, std::vector<double>> waveform_time_map;
@@ -275,15 +295,17 @@ void induction_1_template_maker() {
     
 
       // Create a histogram for the waveform
-      TH1D* hist = new TH1D(Form("waveform_%d_entry_%lld", wave_num, i), Form("Waveform %d;Time (ticks);ADC counts", wave_num), nBins, 1, 67);
+      TH1D* hist = new TH1D(Form("waveform_%d_entry_%lld", wave_num, i), Form("Waveform %d;Time (ticks);ADC counts", wave_num), nBins, 1, 81);
 
       // Fill the histogram with ADC values at corresponding time bins
       for (size_t k = 0; k < adc_vals.size(); k++) {
 	hist->SetBinContent(k+1, adc_vals[k]);
       }
+      // Align the waveform to the down-peak
+      TH1D* alignedHist = AlignToDownPeak(hist, /* targetBin */ 47);
 
-      // Add the histogram to the vector
-      temp_histograms.push_back(hist);
+      // Add the aligned histogram to the list for averaging
+      temp_histograms.push_back(alignedHist);
 
       // Create a canvas to draw the histogram
       TCanvas *c1 = new TCanvas(Form("c1_waveform_%d", wave_num), "Waveform", 800, 600);
@@ -293,7 +315,7 @@ void induction_1_template_maker() {
 
       // Save the plot as a PNG file with the output directory
       //      c1->SaveAs(Form("%swaveform_%d.pdf", output_dir, wave_num));
-
+      std::cout<<" Waveform Number "<<wave_num<<std::endl;
       // Clean up
       delete c1;
     }
@@ -302,8 +324,7 @@ void induction_1_template_maker() {
 
   // Calculate the average histogram (template)
   TH1D* averageHistogram = CalculateAverageHistogram(histograms, nBins);
-  std::cout << "made it past calculating avg hists\n";
-
+ 
   // Plot and save the averaged histogram
   TCanvas *c_avg = new TCanvas("c_avg", "Average Waveform", 800, 600);
   averageHistogram->SetLineColor(kBlue-6);
@@ -311,7 +332,8 @@ void induction_1_template_maker() {
   averageHistogram->Draw();
   c_avg->SaveAs(Form("%stemplate_waveform.pdf", output_dir));
 
-  
+  std::vector<double> eventScalingFactorsPeak;
+  std::vector<double> eventScalingFactorsTrough;  
   // Compare individual waveforms to the average template and plot
   for (int i = 0; i < nEntries; i++) {
     tree->GetEntry(i);
@@ -325,15 +347,31 @@ void induction_1_template_maker() {
     TH2D* scaling_factors = new TH2D("peak", "trough",  100, 0, 18, 100, 0, 6);
 
     int wave_num=1;
-    for (auto hist : histograms.at(i)) {
-      // std::cout << histograms.size() << "\n";
+    double sumScalingFactorsPeak=0.0;
+    double sumScalingFactorsTrough = 0.0;
+    int countScalingFactors = 0; 
+   for (auto hist : histograms.at(i)) {
       double hit_tim=waveform_peak_time_map.at(i)[wave_num]; 
       int wire_num = waveform_wire_map.at(i)[wave_num];
-      std::cout << "wire number for  waveform " << wave_num << ": " << wire_num << std::endl;
+      //  std::cout << "wire number for  waveform " << wave_num << ": " << wire_num << std::endl;
       CompareWaveformToTemplate(hist, averageHistogram, output_dir, wave_num,wire_num,scalingGraph,hit_tim, heat_map, scaling_factors);
+      std::pair<double, double> scalingFactors = CalculatePeakTroughScalingFactor(hist, averageHistogram);
+      double peakScalingFactor = scalingFactors.first;
+      double troughScalingFactor = scalingFactors.second;
+      sumScalingFactorsPeak += peakScalingFactor;
+      sumScalingFactorsTrough += troughScalingFactor;
+      countScalingFactors++;
       wave_num++;
     }
   
+   if (countScalingFactors > 0) {
+     double averageScalingFactorPeak = sumScalingFactorsPeak / countScalingFactors;
+     double averageScalingFactorTrough = sumScalingFactorsTrough / countScalingFactors;
+     eventScalingFactorsPeak.push_back(averageScalingFactorPeak);
+     eventScalingFactorsTrough.push_back(averageScalingFactorTrough);
+     std::cout << "Average peak scaling factor for entry " << i << ": " << averageScalingFactorPeak << std::endl;
+     std::cout << "Average trough scaling factor for entry " << i << ": " << averageScalingFactorTrough << std::endl;
+   }
     
     // Plot and save the scaling factor vs wire number
     TCanvas *c_scaling = new TCanvas("c_scaling", "Scaling Factor vs Wire Number", 800, 600);
@@ -343,20 +381,20 @@ void induction_1_template_maker() {
     scalingGraph->SetMarkerSize(0.75);
     scalingGraph->GetXaxis()->SetLimits(0, 1700);
     scalingGraph->Draw("AP");
-    c_scaling->SaveAs(Form("%sscaling_factor_vs_wire_number_entry_%d.pdf", output_dir, i));
+    // c_scaling->SaveAs(Form("%sscaling_factor_vs_wire_number_entry_%d.pdf", output_dir, i));
     
     TCanvas* c_wire_vs_time = new TCanvas("c_wire_vs_time", "Wire vs Peak Time", 900, 600);
     heat_map->Draw("COLZ");
     heat_map->GetXaxis()->SetTitle("Wire Number");
     heat_map->GetYaxis()->SetTitle("Waveform Time (Ticks)");
-    c_wire_vs_time->SaveAs(Form("%sheat_map_entry_%d.pdf", output_dir, i));
+    // c_wire_vs_time->SaveAs(Form("%sheat_map_entry_%d.pdf", output_dir, i));
   
 
     TCanvas* c_scaling_factors = new TCanvas("", "", 900, 600);
     scaling_factors->Draw("COLZ");
     scaling_factors->GetXaxis()->SetTitle("Peak Scaling");
     scaling_factors->GetYaxis()->SetTitle("Trough Scaling");
-    c_scaling_factors->SaveAs(Form("%sscaling_factors_entry_%d.pdf", output_dir, i));
+    // c_scaling_factors->SaveAs(Form("%sscaling_factors_entry_%d.pdf", output_dir, i));
 
     delete scalingGraph;
     delete heat_map;

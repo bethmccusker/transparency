@@ -39,7 +39,7 @@ int Closest_Track(vector<double>* TPC_Angle, double CRT_Angle){
 }
 
 //*****************************Main*********************************************************//
-void Selection_collection()
+void selection_collection()
 {
   //******************************Accessing Tree and defining histograms*************************//
   gROOT->Reset();
@@ -47,7 +47,7 @@ void Selection_collection()
   gStyle->SetOptStat(0); //Removing the stats box
   gStyle->SetPalette(kCandy);
   TColor::InvertPalette(); 
-  TFile  myFile("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb04_process2_EventBuilder4_p2_art1_run16740_3_20240912T081019-2106a30f-6e4b-4c39-b710-5286b5565346_Reco1Comm-20241204T105223.root");
+  TFile  myFile("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb04_process2_EventBuilder4_p2_art1_run16740_3_20240912T081019-2106a30f-6e4b-4c39-b710-5286b5565346_Reco1Comm-20241204T120333.root");
   TTree* myTree = (TTree*) myFile.Get("hitdumper/hitdumpertree");
   vector<double>*  ct_x1=0;
   vector<double>*  ct_x2=0;
@@ -193,8 +193,8 @@ void Selection_collection()
 	  Double_t theta_yz = Modified_TPC_theta_yz->at(Closest_Index);
 	  TPC_Theta_xz->Fill(theta_xz);
 	  TPC_Theta_yz->Fill(theta_yz);     
-	*/
-	}
+	
+	  }*/
       }// cut if loop
     }// end of CRT track loop                                                                                                                                                                                        
     
