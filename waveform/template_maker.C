@@ -179,7 +179,7 @@ void template_maker() {
   gStyle->SetOptStat(0); //Removing the stats box
    gStyle->SetPalette(kCandy);
    TColor::InvertPalette(); 
-  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb04_process2_EventBuilder4_p2_art1_run16740_3_20240912T081019-2106a30f-6e4b-4c39-b710-5286b5565346_Reco1Comm-20241204T105223.root");
+  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb01_EventBuilder1_art1_run16740_10_20240912T082517-30bef869-9d29-42a0-aa77-091ad9c1620d_Reco1Comm-20250120T145121.root");
   TTree *tree = (TTree*)file->Get("hitdumper/hitdumpertree");
 
   // Variables to store the data
@@ -188,7 +188,10 @@ void template_maker() {
   std::vector<float> *adc_on_wire = nullptr;
   std::vector<float> *time_for_waveform = nullptr;
   std::vector<int> *wire_number = nullptr;
+  std::vector<int> *channel_number = nullptr;
   std::vector<double> *hit_time = nullptr;
+  std::vector<double> *crt_gradient=nullptr;
+  std::vector<double> *crt_intercept=nullptr;
  
   // Set branch addresses to connect the variables to the tree
   tree->SetBranchAddress("nhits", &nhits); 
@@ -196,7 +199,20 @@ void template_maker() {
   tree->SetBranchAddress("adc_on_wire", &adc_on_wire);
   tree->SetBranchAddress("time_for_waveform", &time_for_waveform);
   tree->SetBranchAddress("wire_number", &wire_number);
+  tree->SetBranchAddress("channel_number", &channel_number);
   tree->SetBranchAddress("hit_time", &hit_time);
+  tree->SetBranchAddress("crt_gradient", &crt_gradient);
+  tree->SetBranchAddress("crt_intercept", &crt_intercept);
+
+  TFile *file2=TFile::Open("/exp/sbnd/app/users/bethanym/wire_plane_transparency/code_repo/waveform/wires/wire_info.root");
+  TTree *tree2 =(TTree*)file->Get("data");
+  int *chan=nullptr;
+  double *wire_gradient=nullptr;
+  double *wire_intercept=nullptr;
+
+  tree->SetBranchAddress("chan", &chan);
+  tree->SetBranchAddress("wire_gradient", &wire_gradient);
+  tree->SetBranchAddress("wire_intercept", &wire_intercept);
 
   const char *output_dir = "/exp/sbnd/data/users/bethanym/wire_transparency/templateFitting/";
 
@@ -204,17 +220,20 @@ void template_maker() {
   int nBins = 41;
   std::vector<std::vector<TH1D*>> histograms;
   std::vector<std::map<int, int>> waveform_wire_map;
+  std::vector<std::map<int, int>> waveform_channel_map;
   std::vector<std::map<int, double>> waveform_peak_time_map;
 
   // Loop over tree entries (events)
   Long64_t nEntries = tree->GetEntries();
   for (Long64_t i = 0; i < nEntries; i++) {
     tree->GetEntry(i); // Load the ith entry
+    std::vector<double> crt_grad=crt_gradient[i];
+    std::vector<double> crt_int=crt_intercept[i];
 
     // Map to store waveform data indexed by waveform number                                       
     std::map<int, std::vector<double>> waveform_adc_map;
- 
     std::map<int, int> temp_waveform_wire_map;
+    std::map<int, int> temp_waveform_channel_map;
     std::map<int, double> temp_waveform_peak_time_map;  
     // Loop through each data point in the current entry and organize by waveform number
     for (size_t j = 0; j < waveform_number->size(); j++) {
@@ -224,11 +243,13 @@ void template_maker() {
 	int wave_num = waveform_number->at(j);
 	waveform_adc_map[wave_num].push_back(adc_on_wire->at(j));
 	temp_waveform_wire_map[wave_num] = wire_number->at(j);
+	temp_waveform_channel_map[wave_num] = channel_number->at(j);
 	temp_waveform_peak_time_map[wave_num] = hit_time->at(j);     
       }
     }
 
     waveform_wire_map.push_back(temp_waveform_wire_map);
+    waveform_channel_map.push_back(temp_waveform_channel_map);
     waveform_peak_time_map.push_back(temp_waveform_peak_time_map);
   
     std::vector<TH1D*> temp_histograms;
@@ -293,12 +314,18 @@ for (int i = 0; i < nEntries; i++) {
   for (auto hist : histograms.at(i)) {
     double hit_tim=waveform_peak_time_map.at(i)[wave_num];
     int wire_num = waveform_wire_map.at(i)[wave_num];
+    int channel_num = waveform_channel_map.at(i)[wave_num];
     CompareWaveformToTemplate(hist, averageHistogram, output_dir, wave_num,wire_num,scalingGraph,hit_tim, heat_map);
-   
     double scalingFactor = CalculateScalingFactor(hist, averageHistogram);
     sumScalingFactors += scalingFactor;
     countScalingFactors++;
-
+    int nentries=tree->GetEntries();
+    for (int entry = 0; entry < nentries; ++entry) {
+      tree2->GetEntry(entry);
+	if (*chan == channel_num) {
+	  std::pair<double, double> yz_position (crt_grad, crt_int, wire_gradient, wire_intercept);
+      }
+    }
     wave_num++;
   }
     
