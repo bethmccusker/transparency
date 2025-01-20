@@ -170,6 +170,14 @@ std::pair<double, double> findIntersection(double m1, double c1, double m2, doub
   return {y_intersect, z_intersect};
 }
 
+double vector_to_double(const std::vector<double>& vec) {
+  if (vec.size() != 1) {
+    // Handle the case where the vector doesn't have exactly one element
+    // You can throw an exception, return a default value, or handle it differently
+    throw std::runtime_error("Vector does not contain exactly one element."); 
+  }
+  return vec[0]; 
+}
 
 //*********************************************Functions End ***************************************************//
 
@@ -204,8 +212,10 @@ void template_maker() {
   tree->SetBranchAddress("crt_gradient", &crt_gradient);
   tree->SetBranchAddress("crt_intercept", &crt_intercept);
 
-  TFile *file2=TFile::Open("/exp/sbnd/app/users/bethanym/wire_plane_transparency/code_repo/waveform/wires/wire_info.root");
-  TTree *tree2 =(TTree*)file->Get("data");
+
+
+  TFile *file2=TFile::Open("/exp/sbnd/app/users/bethanym/wire_plane_transparency/code_repo/waveform/wires/wire_info.root", "READ");
+  TTree *tree2 =(TTree*)file2->Get("data");
   int *chan=nullptr;
   double *wire_gradient=nullptr;
   double *wire_intercept=nullptr;
@@ -223,12 +233,14 @@ void template_maker() {
   std::vector<std::map<int, int>> waveform_channel_map;
   std::vector<std::map<int, double>> waveform_peak_time_map;
 
+
   // Loop over tree entries (events)
   Long64_t nEntries = tree->GetEntries();
   for (Long64_t i = 0; i < nEntries; i++) {
     tree->GetEntry(i); // Load the ith entry
-    std::vector<double> crt_grad=crt_gradient[i];
-    std::vector<double> crt_int=crt_intercept[i];
+
+    double crt_grad=vector_to_double(*crt_gradient);
+    double crt_int=vector_to_double(*crt_intercept);
 
     // Map to store waveform data indexed by waveform number                                       
     std::map<int, std::vector<double>> waveform_adc_map;
@@ -307,6 +319,8 @@ for (int i = 0; i < nEntries; i++) {
 
   TGraph* scalingGraph = new TGraph();
   TH2D* heat_map = new TH2D("h_wire_vs_peak_time", "Wire Number vs Peak Time",  1700, 0, 1700, 3500,0, 3500);
+  double crt_grad=vector_to_double(*crt_gradient);
+  double crt_int=vector_to_double(*crt_intercept);
           
   int wave_num=1;
   double sumScalingFactors = 0.0;
@@ -323,7 +337,7 @@ for (int i = 0; i < nEntries; i++) {
     for (int entry = 0; entry < nentries; ++entry) {
       tree2->GetEntry(entry);
 	if (*chan == channel_num) {
-	  std::pair<double, double> yz_position (crt_grad, crt_int, wire_gradient, wire_intercept);
+	  std::pair<double, double> yz_position=findIntersection(crt_grad,crt_int , *wire_gradient, *wire_intercept);
       }
     }
     wave_num++;
