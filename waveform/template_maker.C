@@ -4,7 +4,7 @@
 #include "TCanvas.h"
 #include "TH1F.h"
 #include <iostream>
-
+#include <TH2D.h>
 //*********************************** Functions Start ******************************************//
 TH1D* CalculateAverageHistogram(const std::vector<std::vector<TH1D*>>& histograms, int nBins) {
   // Create the final histogram to store averages
@@ -111,10 +111,10 @@ double CalculateScalingFactor(TH1D* individualWaveform, TH1D* averageTemplate) {
 // Function to compare an individual waveform to the template
 void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, const char* output_dir, int wave_num,int wire_num, TGraph* scalingGraph, double hit_tim, TH2D* heat_map) {
   double scalingFactor = CalculateScalingFactor(individualWaveform, averageTemplate);
-   std::cout << "Ratio of aplitudes for waveform " << wave_num << ": " << scalingFactor << std::endl;
+  // std::cout << "Ratio of aplitudes for waveform " << wave_num << ": " << scalingFactor << std::endl;
   //Calculate integral scale factor
   double integralScale = CalculateIntegral(individualWaveform, averageTemplate);
-   std::cout << "Ratio of integrals for waveform " << wave_num << ": " << integralScale << std::endl;
+  //  std::cout << "Ratio of integrals for waveform " << wave_num << ": " << integralScale << std::endl;
   scalingGraph->SetPoint(scalingGraph->GetN(), wire_num, scalingFactor);
   // Scale the template
   TH1D* Template = (TH1D*)averageTemplate->Clone(Form("scaled_template_%d", wave_num));
@@ -122,7 +122,7 @@ void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, 
 
   // Calculate Chi-squared
   double chi2 = CalculateChiSquared(individualWaveform, Template);
-   std::cout << "Chi-squared for waveform " << wave_num << ": " << chi2 << std::endl;
+  // std::cout << "Chi-squared for waveform " << wave_num << ": " << chi2 << std::endl;
 
   heat_map->Fill(wire_num, hit_tim);
 
@@ -147,7 +147,7 @@ void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, 
   legend->Draw();
 
   // Save the comparison plot
-  c_compare->SaveAs(Form("%scomparison_waveform_%d.pdf", output_dir, wave_num));
+  // c_compare->SaveAs(Form("%scomparison_waveform_%d.pdf", output_dir, wave_num));
 
   // Clean up
   delete c_compare;
@@ -187,7 +187,7 @@ void template_maker() {
   gStyle->SetOptStat(0); //Removing the stats box
    gStyle->SetPalette(kCandy);
    TColor::InvertPalette(); 
-  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb01_EventBuilder1_art1_run16740_10_20240912T082517-30bef869-9d29-42a0-aa77-091ad9c1620d_Reco1Comm-20250120T145121.root");
+  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb04_process2_EventBuilder4_p2_art1_run16740_3_20240912T081019-2106a30f-6e4b-4c39-b710-5286b5565346_Reco1Comm-20250123T104233.root");
   TTree *tree = (TTree*)file->Get("hitdumper/hitdumpertree");
 
   // Variables to store the data
@@ -216,13 +216,13 @@ void template_maker() {
 
   TFile *file2=TFile::Open("/exp/sbnd/app/users/bethanym/wire_plane_transparency/code_repo/waveform/wires/wire_info.root", "READ");
   TTree *tree2 =(TTree*)file2->Get("data");
-  int *chan=nullptr;
-  double *wire_gradient=nullptr;
-  double *wire_intercept=nullptr;
+  std::vector<int> *chan=nullptr;
+  std::vector<double> *wire_gradient=nullptr;
+  std::vector<double> *wire_intercept=nullptr;
 
-  tree->SetBranchAddress("chan", &chan);
-  tree->SetBranchAddress("wire_gradient", &wire_gradient);
-  tree->SetBranchAddress("wire_intercept", &wire_intercept);
+  tree2->SetBranchAddress("chan", &chan);
+  tree2->SetBranchAddress("gradient", &wire_gradient);
+  tree2->SetBranchAddress("intercept", &wire_intercept);
 
   const char *output_dir = "/exp/sbnd/data/users/bethanym/wire_transparency/templateFitting/";
 
@@ -233,6 +233,8 @@ void template_maker() {
   std::vector<std::map<int, int>> waveform_channel_map;
   std::vector<std::map<int, double>> waveform_peak_time_map;
 
+  TH2D* h_sum = new TH2D("sum entriws", "2D Histogram;Y coordinate;Z coordinate;Scaling Probability",175, 0., 500.,100, -200., 200.);
+  TH2D* h_count = new TH2D("count entries", "Histogram;Y coordinate;Z coordinate;Scaling Probability",175, 0., 500.,100, -200., 200.); 
 
   // Loop over tree entries (events)
   Long64_t nEntries = tree->GetEntries();
@@ -289,7 +291,7 @@ void template_maker() {
 
       // Save the plot as a PNG file with the output directory
       //          c1->SaveAs(Form("%swaveform_%d.pdf", output_dir, wave_num));
-      std::cout<<" Waveform Number "<<wave_num<<std::endl;
+      //  std::cout<<" Waveform Number "<<wave_num<<std::endl;
       // Clean up
       delete c1;
     }
@@ -329,15 +331,27 @@ for (int i = 0; i < nEntries; i++) {
     double hit_tim=waveform_peak_time_map.at(i)[wave_num];
     int wire_num = waveform_wire_map.at(i)[wave_num];
     int channel_num = waveform_channel_map.at(i)[wave_num];
+    std::cout<<"chan number" << channel_num<<std::endl;
     CompareWaveformToTemplate(hist, averageHistogram, output_dir, wave_num,wire_num,scalingGraph,hit_tim, heat_map);
     double scalingFactor = CalculateScalingFactor(hist, averageHistogram);
     sumScalingFactors += scalingFactor;
     countScalingFactors++;
-    int nentries=tree->GetEntries();
+    int nentries=tree2->GetEntries();
     for (int entry = 0; entry < nentries; ++entry) {
       tree2->GetEntry(entry);
-	if (*chan == channel_num) {
-	  std::pair<double, double> yz_position=findIntersection(crt_grad,crt_int , *wire_gradient, *wire_intercept);
+      for (size_t i = 0; i < chan->size(); ++i) {
+	if ((*chan)[i] == channel_num) {
+	  std::cout<<"chan" <<chan->at(i)<<std::endl;
+	  double gradient = wire_gradient->at(i);
+	  double intercept = wire_intercept->at(i);
+	  std::pair<double, double> yz_position=findIntersection(crt_grad,crt_int ,gradient,intercept);
+	  double y_position = yz_position.first;
+	  double z_position= yz_position.second;
+	  std::cout<< "y=  "<< y_position<<std::endl;
+	  std::cout<< "z=  "<< z_position<<std::endl;
+	  h_sum->Fill(z_position, y_position, scalingFactor);
+	  h_count->Fill(z_position,y_position,1);
+	}
       }
     }
     wave_num++;
@@ -348,6 +362,20 @@ for (int i = 0; i < nEntries; i++) {
     eventScalingFactors.push_back(averageScalingFactor);
     std::cout << "Average scaling factor for entry " << i << ": " << averageScalingFactor << std::endl;
   }
+  TH2D* h_avg = (TH2D*)h_sum->Clone("h_avg");
+  h_avg->SetTitle("Averaged Values");
+  h_avg->Divide(h_count);
+  TCanvas* average = new TCanvas("averagw", "2D Histogram Canvas", 800, 600);
+  h_avg->GetXaxis()->SetTitle("Z");
+  h_avg->GetYaxis()->SetTitle("Y");
+  h_avg->Draw("COLZ");
+  average->SaveAs(Form("%saverage_scaling_across_dectector_%d.pdf", output_dir, i));
+ 
+ TCanvas* sum = new TCanvas("sum", "2D Histogram Canvas", 800, 600);
+  h_sum->GetXaxis()->SetTitle("Z");
+  h_sum->GetYaxis()->SetTitle("Y");
+  h_sum->Draw("COLZ");
+  sum->SaveAs(Form("%ssum_scaling_across_dectector.pdf", output_dir));
 
   // Plot and save the scaling factor vs wire number
   TCanvas *c_scaling = new TCanvas("c_scaling", "Scaling Factor vs Wire Number", 800, 600);
