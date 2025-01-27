@@ -6,7 +6,7 @@
 #include "TMath.h"
 #include <iostream>
 
-
+//***********************************Functions Start ******************************************//
 TH1D* CalculateAverageHistogram(const std::vector<std::vector<TH1D*>>& histograms, int nBins) {
   // Create the final histogram to store averages
   auto averageHistogram = new TH1D("AverageHistogram", "Average Waveform;Time (ticks);ADC counts", nBins, 1, 81);
@@ -227,7 +227,32 @@ void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, 
   delete Template;
 }
 
+// Function to find the intersection of two lines in the form Z = mY + c
+std::pair<double, double> findIntersection(double m1, double c1, double m2, double c2) {
+  // Check if the lines are parallel
+  if (m1 == m2) {
+    std::cerr << "The lines are parallel and do not intersect." << std::endl;
+    return {std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN()};
+  }
 
+  // Calculate the intersection point
+  double y_intersect = (c2 - c1) / (m1 - m2); // Solve for Y
+  double z_intersect = m1 * y_intersect + c1; // Solve for Z using either line equation
+
+  return {y_intersect, z_intersect};
+}
+
+double vector_to_double(const std::vector<double>& vec) {
+  if (vec.size() != 1) {
+    // Handle the case where the vector doesn't have exactly one element
+    // You can throw an exception, return a default value, or handle it differently
+    throw std::runtime_error("Vector does not contain exactly one element."); 
+  }
+  return vec[0]; 
+}
+
+//**********************************Functions End********************************************//
+//**********************************Main Body Start ********************************************//
 void induction_1_template_maker() {
   gStyle->SetOptStat(0); //Removing the stats box
    gStyle->SetPalette(kCandy);
@@ -251,14 +276,27 @@ void induction_1_template_maker() {
   tree->SetBranchAddress("wire_number", &wire_number);
   tree->SetBranchAddress("hit_time", &hit_time);
 
+  TFile *file2=TFile::Open("/exp/sbnd/app/users/bethanym/wire_plane_transparency/code_repo/waveform/wires/wire_info.root", "READ");
+  TTree *tree2 =(TTree*)file2->Get("data");
+  std::vector<int> *chan=nullptr;
+  std::vector<double> *wire_gradient=nullptr;
+  std::vector<double> *wire_intercept=nullptr;
+
+  tree2->SetBranchAddress("chan", &chan);
+  tree2->SetBranchAddress("gradient", &wire_gradient);
+  tree2->SetBranchAddress("intercept", &wire_intercept);
+
   const char *output_dir = "/exp/sbnd/data/users/bethanym/wire_transparency/templateFitting/";
 
   // Vector to store histograms of each waveform
   int nBins = 81;
   std::vector<std::vector<TH1D*>> histograms;
   std::vector<std::map<int, int>> waveform_wire_map;
+  std::vector<std::map<int, int>> waveform_channel_map;
   std::vector<std::map<int, double>> waveform_peak_time_map;
 
+  TH2D* h_sum = new TH2D("sum entriws", "2D Histogram;Y coordinate;Z coordinate;Scaling Probability",175, 0., 500.,100, -200., 200.);
+  TH2D* h_count = new TH2D("count entries", "Histogram;Y coordinate;Z coordinate;Scaling Probability",175, 0., 500.,100, -200., 200.);
 
   // Loop over tree entries (events)
   Long64_t nEntries = tree->GetEntries();
@@ -267,9 +305,8 @@ void induction_1_template_maker() {
   
     // Map to store waveform data indexed by waveform number                                                                                                                                                         
     std::map<int, std::vector<double>> waveform_adc_map;
-    //std::map<int, std::vector<double>> waveform_time_map;
-   
     std::map<int, int> temp_waveform_wire_map;
+    std::map<int, int> temp_waveform_channel_map;
     std::map<int, double> temp_waveform_peak_time_map;
     // Loop through each data point in the current entry and organize by waveform number
     for (size_t j = 0; j < waveform_number->size(); j++) {
@@ -280,11 +317,13 @@ void induction_1_template_maker() {
 	waveform_adc_map[wave_num].push_back(adc_on_wire->at(j));
 	//	waveform_time_map[wave_num].push_back(time_for_waveform->at(j));
 	temp_waveform_wire_map[wave_num] = wire_number->at(j);
+	temp_waveform_channel_map[wave_num] = channel_number->at(j);
 	temp_waveform_peak_time_map[wave_num] = hit_time->at(j);
       }
     }
 
     waveform_wire_map.push_back(temp_waveform_wire_map);
+    waveform_channel_map.push_back(temp_waveform_channel_map);
     waveform_peak_time_map.push_back(temp_waveform_peak_time_map);
   
     std::vector<TH1D*> temp_histograms;
@@ -345,13 +384,16 @@ void induction_1_template_maker() {
     TGraph* scalingGraph = new TGraph();
     TH2D* heat_map = new TH2D("h_wire_vs_peak_time", "Wire Number vs Peak Time",  500, 0, 2000, 500, 0, 3500);
     TH2D* scaling_factors = new TH2D("peak", "trough",  100, 0, 18, 100, 0, 6);
+    double crt_grad=vector_to_double(*crt_gradient);
+    double crt_int=vector_to_double(*crt_intercept);
 
     int wave_num=1;
     double sumScalingFactorsPeak=0.0;
     double sumScalingFactorsTrough = 0.0;
     int countScalingFactors = 0; 
    for (auto hist : histograms.at(i)) {
-      double hit_tim=waveform_peak_time_map.at(i)[wave_num]; 
+      double hit_tim=waveform_peak_time_map.at(i)[wave_num];
+      int channel_num = waveform_channel_map.at(i)[wave_num]; 
       int wire_num = waveform_wire_map.at(i)[wave_num];
       //  std::cout << "wire number for  waveform " << wave_num << ": " << wire_num << std::endl;
       CompareWaveformToTemplate(hist, averageHistogram, output_dir, wave_num,wire_num,scalingGraph,hit_tim, heat_map, scaling_factors);
@@ -361,6 +403,24 @@ void induction_1_template_maker() {
       sumScalingFactorsPeak += peakScalingFactor;
       sumScalingFactorsTrough += troughScalingFactor;
       countScalingFactors++;
+      int nentries=tree2->GetEntries();
+      for (int entry = 0; entry < nentries; ++entry) {
+	tree2->GetEntry(entry);
+	for (size_t i = 0; i < chan->size(); ++i) {
+	  if ((*chan)[i] == channel_num) {
+	    std::cout<<"chan" <<chan->at(i)<<std::endl;
+	    double gradient = wire_gradient->at(i);
+	    double intercept = wire_intercept->at(i);
+	    std::pair<double, double> yz_position=findIntersection(crt_grad,crt_int ,gradient,intercept);
+	    double y_position = yz_position.first;
+	    double z_position= yz_position.second;
+	    std::cout<< "y=  "<< y_position<<std::endl;
+	    std::cout<< "z=  "<< z_position<<std::endl;
+	    h_sum->Fill(z_position, y_position, scalingFactor);
+	    h_count->Fill(z_position,y_position,1);
+	  }
+	}
+      }
       wave_num++;
     }
   
@@ -373,6 +433,22 @@ void induction_1_template_maker() {
      std::cout << "Average trough scaling factor for entry " << i << ": " << averageScalingFactorTrough << std::endl;
    }
     
+
+   TH2D* h_avg = (TH2D*)h_sum->Clone("h_avg");
+   h_avg->SetTitle("Averaged Values");
+   h_avg->Divide(h_count);
+   TCanvas* average = new TCanvas("averagw", "2D Histogram Canvas", 800, 600);
+   h_avg->GetXaxis()->SetTitle("Z");
+   h_avg->GetYaxis()->SetTitle("Y");
+   h_avg->Draw("COLZ");
+   average->SaveAs(Form("%saverage_scaling_across_dectector_%d.pdf", output_dir, i));
+ 
+   TCanvas* sum = new TCanvas("sum", "2D Histogram Canvas", 800, 600);
+   h_sum->GetXaxis()->SetTitle("Z");
+   h_sum->GetYaxis()->SetTitle("Y");
+   h_sum->Draw("COLZ");
+   sum->SaveAs(Form("%ssum_scaling_across_dectector.pdf", output_dir));
+
     // Plot and save the scaling factor vs wire number
     TCanvas *c_scaling = new TCanvas("c_scaling", "Scaling Factor vs Wire Number", 800, 600);
     scalingGraph->SetTitle("Scaling Factor vs Wire Number;Wire Number;Scaling Factor");
