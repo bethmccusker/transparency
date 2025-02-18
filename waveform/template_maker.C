@@ -187,7 +187,7 @@ void template_maker() {
   gStyle->SetOptStat(0); //Removing the stats box
    gStyle->SetPalette(kCandy);
    TColor::InvertPalette(); 
-  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb04_process2_EventBuilder4_p2_art1_run16740_3_20240912T081019-2106a30f-6e4b-4c39-b710-5286b5565346_Reco1Comm-20250123T104233.root");
+  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb04_process2_EventBuilder4_p2_art1_run16740_3_20240912T081019-2106a30f-6e4b-4c39-b710-5286b5565346_Reco1Comm-20250127T140118.root");
   TTree *tree = (TTree*)file->Get("hitdumper/hitdumpertree");
 
   // Variables to store the data
