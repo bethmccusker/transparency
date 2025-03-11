@@ -85,7 +85,7 @@ void waveform_plotter() {
   gStyle->SetPalette(kCandy);
   TColor::InvertPalette();
   // Open the ROOT file
-  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb01_EventBuilder1_art1_run16740_10_20240912T082517-30bef869-9d29-42a0-aa77-091ad9c1620d_Reco1Comm-20250220T101021.root");
+  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb02_process2_EventBuilder2_p2_art1_run16740_40_20240912T093131-bbbea2ee-e870-40dc-a394-c50c841e86fd_Reco1Comm-20250311T150519.root");
 
   // Access the tree containing your waveform data
   TTree *tree = (TTree*)file->Get("hitdumper/hitdumpertree");
@@ -150,7 +150,7 @@ void waveform_plotter() {
     if (adc_vals.empty() || time_vals.empty()) {
       continue;
     }
-
+    /*
     if (HasDoublePeakFeature(adc_vals, 10.0)){
       fail_count++;
       continue;
@@ -162,13 +162,13 @@ void waveform_plotter() {
       continue;
     }
 
-  
+    */
 
     auto [half_width, amplitude] = CalculateHalfWidthHeightAndAmplitudeCollection(adc_vals, time_vals);
-    if (half_width < 5.5 || half_width > 8.5) {
-      fail_count++;
-      continue;
-    }
+    //    if (half_width < 5.5 || half_width > 8.5) {
+    // fail_count++;
+    // continue;
+    // }
 
     pass_count++;
     double area_under_curve = CalculateAreaUnderCurve(adc_vals, time_vals);
@@ -201,8 +201,8 @@ void waveform_plotter() {
     TCanvas *c1 = new TCanvas(Form("c1_waveform_%d", wave_num), "Waveform", 800, 600);
     graph->Draw("AL");
 
-
-    if((half_width>8.5 || half_width<5.5)/* || (amplitude>140) || ((half_width>8.5 || half_width<5.5)&& amplitude>140)*/){
+    /*
+    if((half_width>8.5 || half_width<5.5) || (amplitude>140) || ((half_width>8.5 || half_width<5.5)&& amplitude>140)){
     c1->SaveAs(Form("%swaveform_%d.pdf",output_dir, wave_num));
     std::cout << "Waveform " << wave_num << " Half-Width Height: " << half_width << " Amplitude: " << amplitude << "\n";
     std::cout << "area under curve" <<area_under_curve<< endl;
@@ -210,6 +210,7 @@ void waveform_plotter() {
     std::cout << " Time " <<time_vals[0]<< endl;
     std::cout << " Wave " <<wave_num<< endl;
     }
+*/
     //    std::cout << "Number of waveforms that passed: " << pass_count << std::endl;
     std::cout << "Number of waveforms that failed: " << fail_count << std::endl;
     // Optionally, delete canvas and graph to free memory
@@ -276,7 +277,7 @@ void waveform_plotter() {
     amplitude_hist->Fit(gaus_fit, "R");
   }
 
-  c2->SaveAs(Form("%samplitude_histogram.pdf", output_dir));
+  //  c2->SaveAs(Form("%samplitude_histogram.pdf", output_dir));
 
 
   // Clean up
