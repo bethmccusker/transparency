@@ -70,12 +70,29 @@ double CalculateAreaUnderCurve(const std::vector<double>& adc_vals, const std::v
 
 bool HasDoublePeakFeature(const std::vector<double>& adc_vals, double threshold) {
   int peak_count = 0;
-  for (size_t i = 1; i < adc_vals.size() - 1; ++i) {
-    if (adc_vals[i] > threshold && adc_vals[i] > adc_vals[i - 1] && adc_vals[i] > adc_vals[i + 1]) {
-      peak_count++;
-      if (peak_count > 1) return true;
+  size_t i = 1;
+
+  while (i < adc_vals.size() - 1) {
+    // Check for a rising edge
+    if (adc_vals[i] >= threshold && adc_vals[i] > adc_vals[i - 1]) {
+      size_t plateau_start = i;
+
+      // Move forward as long as the values are the same (flat top)
+      while (i < adc_vals.size() - 1 && adc_vals[i] == adc_vals[i + 1]) {
+        ++i;
+      }
+
+      // Now check if there's a falling edge after the plateau
+      if (i < adc_vals.size() - 1 && adc_vals[i] > adc_vals[i + 1]) {
+        // Found a peak (including flat-top)
+        peak_count++;
+        if (peak_count > 1) return true;
+      }
     }
+
+    ++i; // Move to the next point
   }
+
   return false;
 }
 
@@ -85,7 +102,7 @@ void waveform_plotter() {
   gStyle->SetPalette(kCandy);
   TColor::InvertPalette();
   // Open the ROOT file
-  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb02_process2_EventBuilder2_p2_art1_run16740_40_20240912T093131-bbbea2ee-e870-40dc-a394-c50c841e86fd_Reco1Comm-20250311T150519.root");
+  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb01_EventBuilder1_art1_run16740_10_20240912T082517-30bef869-9d29-42a0-aa77-091ad9c1620d_Reco1Comm-20250220T101021.root");
 
   // Access the tree containing your waveform data
   TTree *tree = (TTree*)file->Get("hitdumper/hitdumpertree");
@@ -114,15 +131,14 @@ void waveform_plotter() {
   TH1F *amplitude_hist = new TH1F("amplitude_hist", "Amplitude Distribution;Amplitude (ADC counts);Entries", 100, 0,300);
 
 
-  // Map to store waveform data indexed by waveform number
-  std::map<int, std::vector<double>> waveform_adc_map;
-  std::map<int, std::vector<double>> waveform_time_map;
-  std::map<int, std::vector<int>> waveform_wire_map;
-
   // Loop over tree entries (events)
   Long64_t nEntries = tree->GetEntries();
   for (Long64_t i = 0; i < nEntries; i++) {
     tree->GetEntry(i); // Load the ith entry
+
+    std::map<int, std::vector<double>> waveform_adc_map;
+    std::map<int, std::vector<double>> waveform_time_map;
+    std::map<int, std::vector<int>> waveform_wire_map;
 
     // Loop through each data point in the current entry and organize by waveform number
     for (size_t j = 0; j < waveform_number->size(); j++) {
@@ -135,12 +151,12 @@ void waveform_plotter() {
 	waveform_wire_map[wave_num].push_back(wire_number->at(j));
       }
     }
-  }
+  
 
   int pass_count=0;
   int fail_count=0;
 
-  // Now plot each waveform based on the unique waveform numbers
+
   for (const auto &entry : waveform_adc_map) {
     int wave_num = entry.first; // The current waveform number
     const std::vector<double> &adc_vals = entry.second;
@@ -150,12 +166,12 @@ void waveform_plotter() {
     if (adc_vals.empty() || time_vals.empty()) {
       continue;
     }
-    /*
+    
     if (HasDoublePeakFeature(adc_vals, 10.0)){
       fail_count++;
       continue;
     }
-
+    /*
     double max_adc = *std::max_element(adc_vals.begin(), adc_vals.end());
     if (max_adc > 140) {
       fail_count++;
@@ -172,13 +188,13 @@ void waveform_plotter() {
 
     pass_count++;
     double area_under_curve = CalculateAreaUnderCurve(adc_vals, time_vals);
-
-    //    std::cout << "Waveform " << wave_num << " Half-Width Height: " << half_width << " Amplitude: " << amplitude << "\n";
-    // std::cout << "area under curve" <<area_under_curve<< endl;
-    //std::cout << " Wire " <<wire_num[0]<< endl; 
-    // std::cout << " Time " <<time_vals[0]<< endl;
-    // std::cout << " Wave " <<wave_num<< endl;
-
+    /*
+    std::cout << "Waveform " << wave_num << " Half-Width Height: " << half_width << " Amplitude: " << amplitude << "\n";
+    std::cout << "area under curve" <<area_under_curve<< endl;
+    std::cout << " Wire " <<wire_num[0]<< endl; 
+    std::cout << " Time " <<time_vals[0]<< endl;
+    std::cout << " Wave " <<wave_num<< endl;
+    */
 	//	auto [trough_half_width, trough_amplitude] = CalculateHalfWidthHeightAndAmplitudeInduction(adc_vals, time_vals);
 	//  std::cout << " | Trough Half-Width: " << trough_half_width << " Trough Amplitude: " << trough_amplitude << "\n";
 
@@ -190,7 +206,8 @@ void waveform_plotter() {
     area_under_curve_vs_width->Fill(half_width,area_under_curve);
     area_under_curve_vs_amplitude->Fill(amplitude,area_under_curve);
     amplitude_hist->Fill(amplitude);
-
+  
+  
     // Create a TGraph for the current waveform
     TGraph *graph = new TGraph(adc_vals.size(), &time_vals[0], &adc_vals[0]);
     graph->SetTitle(Form("Waveform Number %d;Time (ticks);ADC counts", wave_num));
@@ -201,23 +218,25 @@ void waveform_plotter() {
     TCanvas *c1 = new TCanvas(Form("c1_waveform_%d", wave_num), "Waveform", 800, 600);
     graph->Draw("AL");
 
-    /*
-    if((half_width>8.5 || half_width<5.5) || (amplitude>140) || ((half_width>8.5 || half_width<5.5)&& amplitude>140)){
+    
+    if((half_width>8.5 || half_width<5.5)/* || (amplitude>140) || ((half_width>8.5 || half_width<5.5)&& amplitude>140)*/){
+    
     c1->SaveAs(Form("%swaveform_%d.pdf",output_dir, wave_num));
-    std::cout << "Waveform " << wave_num << " Half-Width Height: " << half_width << " Amplitude: " << amplitude << "\n";
+      
+ std::cout << "Waveform " << wave_num << " Half-Width Height: " << half_width << " Amplitude: " << amplitude << "\n";
     std::cout << "area under curve" <<area_under_curve<< endl;
     std::cout << " Wire " <<wire_num[0]<< endl;
     std::cout << " Time " <<time_vals[0]<< endl;
     std::cout << " Wave " <<wave_num<< endl;
     }
-*/
+
     //    std::cout << "Number of waveforms that passed: " << pass_count << std::endl;
     std::cout << "Number of waveforms that failed: " << fail_count << std::endl;
     // Optionally, delete canvas and graph to free memory
     delete c1;
     delete graph;
   }
-
+  }
   TCanvas* heat = new TCanvas("heat", "2D Histogram Canvas", 800, 600);
   heat_map->GetXaxis()->SetTitle("Wire Number");
   heat_map->GetYaxis()->SetTitle("Time (ticks)");
@@ -265,7 +284,7 @@ void waveform_plotter() {
   double fit_min = amplitude_hist->GetXaxis()->GetXmax();
   double fit_max = amplitude_hist->GetXaxis()->GetXmin();
   for (int bin = 1; bin <= amplitude_hist->GetNbinsX(); ++bin) {
-    if (amplitude_hist->GetBinContent(bin) > 65) {
+    if (amplitude_hist->GetBinContent(bin) > 500) {
       double bin_center = amplitude_hist->GetBinCenter(bin);
       if (bin_center < fit_min) fit_min = bin_center;
       if (bin_center > fit_max) fit_max = bin_center;
@@ -277,7 +296,7 @@ void waveform_plotter() {
     amplitude_hist->Fit(gaus_fit, "R");
   }
 
-  //  c2->SaveAs(Form("%samplitude_histogram.pdf", output_dir));
+    c2->SaveAs(Form("%samplitude_histogram.pdf", output_dir));
 
 
   // Clean up
