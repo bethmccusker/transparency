@@ -102,7 +102,7 @@ void waveform_plotter() {
   gStyle->SetPalette(kCandy);
   TColor::InvertPalette();
   // Open the ROOT file
-  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb01_EventBuilder1_art1_run16740_10_20240912T082517-30bef869-9d29-42a0-aa77-091ad9c1620d_Reco1Comm-20250220T101021.root");
+  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb02_process2_EventBuilder2_p2_art1_run16740_40_20240912T093131-bbbea2ee-e870-40dc-a394-c50c841e86fd_Reco1Comm-20250311T150519.root");
 
   // Access the tree containing your waveform data
   TTree *tree = (TTree*)file->Get("hitdumper/hitdumpertree");
@@ -135,6 +135,17 @@ void waveform_plotter() {
   Long64_t nEntries = tree->GetEntries();
   for (Long64_t i = 0; i < nEntries; i++) {
     tree->GetEntry(i); // Load the ith entry
+
+    TH2D* event_heat_map = new TH2D(Form("h_wire_vs_peak_time_%lld",i), "",  1700, 0, 1700, 3500,0, 3500);
+    TH2D* event_width_map = new TH2D(Form("h_wire_vs_width_%lld",i), "",  250, 0, 1700, 100,0, 15);
+    TH2D* event_peak_map = new TH2D(Form("h_wire_vs_peak_amplitude_%lld",i), "",  250, 0, 1700, 100,0, 300);
+    TH2D* event_peak_vs_width = new TH2D(Form("h_peak_vs_width_%lld",i), "",  100, 0,300, 100,0, 15);
+    TH2D* event_area_under_curve_map = new TH2D(Form("h_wire_vs_area_%lld",i), "",  250, 0, 1700, 100,0, 2500);
+    TH2D* event_area_under_curve_vs_width = new TH2D(Form("h_wire_vs_area_vs_width_%lld",i), "",  100, 0, 15, 100,0, 2500);
+    TH2D* event_area_under_curve_vs_amplitude = new TH2D(Form("h_wire_vs_area_vs_amplitude_%lld",i), "",  100, 0, 300, 100,0, 2500);
+   
+
+
 
     std::map<int, std::vector<double>> waveform_adc_map;
     std::map<int, std::vector<double>> waveform_time_map;
@@ -186,8 +197,14 @@ void waveform_plotter() {
     // continue;
     // }
 
-    pass_count++;
+
     double area_under_curve = CalculateAreaUnderCurve(adc_vals, time_vals);
+    if (area_under_curve > 7.35 * amplitude + 250) {
+      fail_count++;
+      continue; // Reject this waveform based on the area vs amplitude cut
+    }
+
+
     /*
     std::cout << "Waveform " << wave_num << " Half-Width Height: " << half_width << " Amplitude: " << amplitude << "\n";
     std::cout << "area under curve" <<area_under_curve<< endl;
@@ -197,6 +214,16 @@ void waveform_plotter() {
     */
 	//	auto [trough_half_width, trough_amplitude] = CalculateHalfWidthHeightAndAmplitudeInduction(adc_vals, time_vals);
 	//  std::cout << " | Trough Half-Width: " << trough_half_width << " Trough Amplitude: " << trough_amplitude << "\n";
+
+    pass_count++;
+
+    event_heat_map->Fill(wire_num[0],time_vals[0]);
+    event_width_map->Fill(wire_num[0],half_width);
+    event_peak_map->Fill(wire_num[0],amplitude);
+    event_peak_vs_width->Fill(amplitude, half_width);
+    event_area_under_curve_map->Fill(wire_num[0],area_under_curve);
+    event_area_under_curve_vs_width->Fill(half_width,area_under_curve);
+    event_area_under_curve_vs_amplitude->Fill(amplitude,area_under_curve);
 
     heat_map->Fill(wire_num[0],time_vals[0]);
     width_map->Fill(wire_num[0],half_width);
@@ -221,13 +248,13 @@ void waveform_plotter() {
     
     if((half_width>8.5 || half_width<5.5)/* || (amplitude>140) || ((half_width>8.5 || half_width<5.5)&& amplitude>140)*/){
     
-    c1->SaveAs(Form("%swaveform_%d.pdf",output_dir, wave_num));
+      // c1->SaveAs(Form("%swaveform_%d.pdf",output_dir, wave_num));
       
- std::cout << "Waveform " << wave_num << " Half-Width Height: " << half_width << " Amplitude: " << amplitude << "\n";
-    std::cout << "area under curve" <<area_under_curve<< endl;
-    std::cout << " Wire " <<wire_num[0]<< endl;
-    std::cout << " Time " <<time_vals[0]<< endl;
-    std::cout << " Wave " <<wave_num<< endl;
+      // std::cout << "Waveform " << wave_num << " Half-Width Height: " << half_width << " Amplitude: " << amplitude << "\n";
+      // std::cout << "area under curve" <<area_under_curve<< endl;
+      // std::cout << " Wire " <<wire_num[0]<< endl;
+      // std::cout << " Time " <<time_vals[0]<< endl;
+      // std::cout << " Wave " <<wave_num<< endl;
     }
 
     //    std::cout << "Number of waveforms that passed: " << pass_count << std::endl;
@@ -236,6 +263,47 @@ void waveform_plotter() {
     delete c1;
     delete graph;
   }
+  TCanvas* event_heat = new TCanvas("heat", "2D Histogram Canvas", 800, 600);
+  event_heat_map->GetXaxis()->SetTitle("Wire Number");
+  event_heat_map->GetYaxis()->SetTitle("Time (ticks)");
+  event_heat_map->Draw("COLZ");
+  event_heat->SaveAs(Form("%sheat_map_%lld.pdf", output_dir,i));
+
+  TCanvas* event_width = new TCanvas("width", "2D Histogram Canvas", 800, 600);
+  event_width_map->GetXaxis()->SetTitle("Wire Number");
+  event_width_map->GetYaxis()->SetTitle("Width at Half Height (ticks)");
+  event_width_map->Draw("COLZ");
+  event_width->SaveAs(Form("%swidth_map_%lld.pdf", output_dir,i));
+
+  TCanvas* event_peak = new TCanvas("peak", "2D Histogram Canvas", 800, 600);
+  event_peak_map->GetXaxis()->SetTitle("Wire Number");
+  event_peak_map->GetYaxis()->SetTitle("Peak Amplitude (ADC)");
+  event_peak_map->Draw("COLZ");
+  event_peak->SaveAs(Form("%speak_map_%lld.pdf", output_dir,i));
+
+  TCanvas* event_peakwidth = new TCanvas("peakwidth", "2D Histogram Canvas", 800, 600);
+  event_peak_vs_width->GetYaxis()->SetTitle("Width at Half Height (ticks)");
+  event_peak_vs_width->GetXaxis()->SetTitle("Peak Amplitude (ADC)");
+  event_peak_vs_width->Draw("COLZ");
+  event_peakwidth->SaveAs(Form("%speakwidth_map_%lld.pdf", output_dir,i));
+
+  TCanvas* event_area = new TCanvas("area", "2D Histogram Canvas", 800, 600);
+  event_area_under_curve_map->GetXaxis()->SetTitle("Wire Number");
+  event_area_under_curve_map->GetYaxis()->SetTitle("Area Under Curve (ADC*ticks)");
+  event_area_under_curve_map->Draw("COLZ");
+  event_area->SaveAs(Form("%sarea_under_area_map_%lld.pdf", output_dir,i));
+
+  TCanvas* event_areawidth = new TCanvas("areawidth", "2D Histogram Canvas", 800, 600);
+  event_area_under_curve_vs_width->GetXaxis()->SetTitle("Width at Half Height (ticks)");
+  event_area_under_curve_vs_width->GetYaxis()->SetTitle("Area Under Curve (ADC*ticks)");
+  event_area_under_curve_vs_width->Draw("COLZ");
+  event_areawidth->SaveAs(Form("%sarea_under_area_vs_width_%lld.pdf", output_dir,i));
+
+  TCanvas* event_areapeak = new TCanvas("areapeak", "2D Histogram Canvas", 800, 600);
+  event_area_under_curve_vs_amplitude->GetXaxis()->SetTitle("Peak Amplitude (ADC)");
+  event_area_under_curve_vs_amplitude->GetYaxis()->SetTitle("Area Under Curve (ADC*ticks)");
+  event_area_under_curve_vs_amplitude->Draw("COLZ");
+  event_areapeak->SaveAs(Form("%sarea_under_area_vs_amplitude_%lld.pdf", output_dir,i));
   }
   TCanvas* heat = new TCanvas("heat", "2D Histogram Canvas", 800, 600);
   heat_map->GetXaxis()->SetTitle("Wire Number");
