@@ -127,30 +127,30 @@ void CompareWaveformToTemplate(TH1D* individualWaveform, TH1D* averageTemplate, 
   heat_map->Fill(wire_num, hit_tim);
 
   // Create a canvas for comparison plot
-  TCanvas *c_compare = new TCanvas(Form("c_compare_%d", wave_num), "Comparison with Template", 800, 600);
+  // TCanvas *c_compare = new TCanvas(Form("c_compare_%d", wave_num), "Comparison with Template", 800, 600);
 
 
   // Draw the individual waveform                                                                                                                                                                                    
-  individualWaveform->SetLineColor(kRed-6);
-  individualWaveform->SetLineWidth(2);
-  individualWaveform->Draw("HIST");
+  //  individualWaveform->SetLineColor(kRed-6);
+  // individualWaveform->SetLineWidth(2);
+  // individualWaveform->Draw("HIST");
 
   // Draw the scaled template on the same canvas                                                                                                                                                                     
-  Template->SetLineColor(kBlue-6);
-  Template->SetLineWidth(2);
-  Template->Draw("HIST SAME");
+  // Template->SetLineColor(kBlue-6);
+  // Template->SetLineWidth(2);
+  // Template->Draw("HIST SAME");
 
    // Add a legend to differentiate the plots
-  TLegend *legend = new TLegend(0.7, 0.7, 0.9, 0.9);
-  legend->AddEntry(individualWaveform, "Individual Waveform", "l");
-  legend->AddEntry(Template, "Scaled Template", "l");
-  legend->Draw();
+  // TLegend *legend = new TLegend(0.7, 0.7, 0.9, 0.9);
+  // legend->AddEntry(individualWaveform, "Individual Waveform", "l");
+  // legend->AddEntry(Template, "Scaled Template", "l");
+  // legend->Draw();
 
   // Save the comparison plot
   // c_compare->SaveAs(Form("%scomparison_waveform_%d.pdf", output_dir, wave_num));
 
   // Clean up
-  delete c_compare;
+  // delete c_compare;
   delete Template;
 }
 
@@ -187,11 +187,11 @@ void template_maker() {
   gStyle->SetOptStat(0); //Removing the stats box
    gStyle->SetPalette(kCandy);
    TColor::InvertPalette(); 
-  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb04_process2_EventBuilder4_p2_art1_run16740_3_20240912T081019-2106a30f-6e4b-4c39-b710-5286b5565346_Reco1Comm-20250127T140118.root");
+  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/grid_test/merged.root");
   TTree *tree = (TTree*)file->Get("hitdumper/hitdumpertree");
 
   // Variables to store the data
-  Int_t *nhits = nullptr;
+  Int_t nhits = 0;
   std::vector<int> *waveform_number = nullptr;
   std::vector<float> *adc_on_wire = nullptr;
   std::vector<float> *time_for_waveform = nullptr;
@@ -240,10 +240,13 @@ void template_maker() {
   Long64_t nEntries = tree->GetEntries();
   for (Long64_t i = 0; i < nEntries; i++) {
     tree->GetEntry(i); // Load the ith entry
-
-    double crt_grad=vector_to_double(*crt_gradient);
-    double crt_int=vector_to_double(*crt_intercept);
-
+    double crt_grad=0;
+    double crt_int=0;
+    if(crt_gradient->size()==1){
+      crt_grad=vector_to_double(*crt_gradient);
+      crt_int=vector_to_double(*crt_intercept);
+    }
+   
     // Map to store waveform data indexed by waveform number                                       
     std::map<int, std::vector<double>> waveform_adc_map;
     std::map<int, int> temp_waveform_wire_map;
@@ -284,16 +287,16 @@ void template_maker() {
       temp_histograms.push_back(hist);
 
       // Create a canvas to draw the histogram
-      TCanvas *c1 = new TCanvas(Form("c1_waveform_%d", wave_num), "Waveform", 800, 600);
-      hist->SetLineColor(kRed-6);
-      hist->SetLineWidth(3);
-      hist->Draw();
+      // TCanvas *c1 = new TCanvas(Form("c1_waveform_%d", wave_num), "Waveform", 800, 600);
+      // hist->SetLineColor(kRed-6);
+      // hist->SetLineWidth(3);
+      // hist->Draw();
 
       // Save the plot as a PNG file with the output directory
       //          c1->SaveAs(Form("%swaveform_%d.pdf", output_dir, wave_num));
-      //  std::cout<<" Waveform Number "<<wave_num<<std::endl;
+       std::cout<<" Waveform Number "<<wave_num<<std::endl;
       // Clean up
-      delete c1;
+       // delete c1;
     }
     histograms.push_back(temp_histograms);
   }
@@ -309,6 +312,7 @@ void template_maker() {
   averageHistogram->Draw();
   c_avg->SaveAs(Form("%stemplate_waveform.pdf", output_dir));
 
+  delete c_avg;
 
   std::vector<double> eventScalingFactors;  
   // Compare individual waveforms to the average template and plot                                                                                                                                          
@@ -331,7 +335,7 @@ for (int i = 0; i < nEntries; i++) {
     double hit_tim=waveform_peak_time_map.at(i)[wave_num];
     int wire_num = waveform_wire_map.at(i)[wave_num];
     int channel_num = waveform_channel_map.at(i)[wave_num];
-    std::cout<<"chan number" << channel_num<<std::endl;
+    // std::cout<<"chan number" << channel_num<<std::endl;
     CompareWaveformToTemplate(hist, averageHistogram, output_dir, wave_num,wire_num,scalingGraph,hit_tim, heat_map);
     double scalingFactor = CalculateScalingFactor(hist, averageHistogram);
     sumScalingFactors += scalingFactor;
@@ -341,14 +345,14 @@ for (int i = 0; i < nEntries; i++) {
       tree2->GetEntry(entry);
       for (size_t i = 0; i < chan->size(); ++i) {
 	if ((*chan)[i] == channel_num) {
-	  std::cout<<"chan" <<chan->at(i)<<std::endl;
+	  // std::cout<<"chan" <<chan->at(i)<<std::endl;
 	  double gradient = wire_gradient->at(i);
 	  double intercept = wire_intercept->at(i);
 	  std::pair<double, double> yz_position=findIntersection(crt_grad,crt_int ,gradient,intercept);
 	  double y_position = yz_position.first;
 	  double z_position= yz_position.second;
-	  std::cout<< "y=  "<< y_position<<std::endl;
-	  std::cout<< "z=  "<< z_position<<std::endl;
+	  // std::cout<< "y=  "<< y_position<<std::endl;
+	  // std::cout<< "z=  "<< z_position<<std::endl;
 	  h_sum->Fill(z_position, y_position, scalingFactor);
 	  h_count->Fill(z_position,y_position,1);
 	}
@@ -369,7 +373,7 @@ for (int i = 0; i < nEntries; i++) {
   h_avg->GetXaxis()->SetTitle("Z");
   h_avg->GetYaxis()->SetTitle("Y");
   h_avg->Draw("COLZ");
-  average->SaveAs(Form("%saverage_scaling_across_dectector_%d.pdf", output_dir, i));
+  average->SaveAs(Form("%saverage_scaling_across_dectector.pdf", output_dir));
  
  TCanvas* sum = new TCanvas("sum", "2D Histogram Canvas", 800, 600);
   h_sum->GetXaxis()->SetTitle("Z");
@@ -378,26 +382,28 @@ for (int i = 0; i < nEntries; i++) {
   sum->SaveAs(Form("%ssum_scaling_across_dectector.pdf", output_dir));
 
   // Plot and save the scaling factor vs wire number
-  TCanvas *c_scaling = new TCanvas("c_scaling", "Scaling Factor vs Wire Number", 800, 600);
-  scalingGraph->SetTitle("Scaling Factor vs Wire Number;Wire Number;Scaling Factor");
-  scalingGraph->SetMarkerStyle(8);
-  scalingGraph->SetMarkerColor(kRed-6);
-  scalingGraph->SetMarkerSize(0.75);
-  scalingGraph->GetXaxis()->SetLimits(0, 1700);
-  scalingGraph->Draw("AP");
+  // TCanvas *c_scaling = new TCanvas("c_scaling", "Scaling Factor vs Wire Number", 800, 600);
+  // scalingGraph->SetTitle("Scaling Factor vs Wire Number;Wire Number;Scaling Factor");
+  // scalingGraph->SetMarkerStyle(8);
+  // scalingGraph->SetMarkerColor(kRed-6);
+  // scalingGraph->SetMarkerSize(0.75);
+  // scalingGraph->GetXaxis()->SetLimits(0, 1700);
+  // scalingGraph->Draw("AP");
   //  c_scaling->SaveAs(Form("%sscaling_factor_vs_wire_number_entry_%d.pdf", output_dir, i));
 
-  TCanvas* c_wire_vs_time = new TCanvas("c_wire_vs_time", "Wire vs Peak Time", 900, 600);
-  heat_map->GetXaxis()->SetTitle("Wire Number");
-  heat_map->GetYaxis()->SetTitle("Waveform Time (Ticks)");
+  // TCanvas* c_wire_vs_time = new TCanvas("c_wire_vs_time", "Wire vs Peak Time", 900, 600);
+  // heat_map->GetXaxis()->SetTitle("Wire Number");
+  // heat_map->GetYaxis()->SetTitle("Waveform Time (Ticks)");
   // heat_map->GetYaxis()->SetRangeUser(500, 800);
-  heat_map->Draw("COLZ");
+  // heat_map->Draw("COLZ");
   //  c_wire_vs_time->SaveAs(Form("%sheat_map_entry_%d.pdf", output_dir, i));
 
   // Clean up
-  delete scalingGraph;
-  delete heat_map;
- 
+  // delete scalingGraph;
+  // delete heat_map;
+  delete h_sum;
+  delete h_avg;
+
  }
 }
 
