@@ -332,6 +332,10 @@ for (int i = 0; i < nEntries; i++) {
   double sumScalingFactors = 0.0;
   int countScalingFactors = 0;
   for (auto hist : histograms.at(i)) {
+    if (waveform_wire_map.at(i).find(wave_num) == waveform_wire_map.at(i).end()) {
+      std::cerr << "Waveform number " << wave_num << " not found in map for entry " << i << std::endl;
+      continue;
+    }
     double hit_tim=waveform_peak_time_map.at(i)[wave_num];
     int wire_num = waveform_wire_map.at(i)[wave_num];
     int channel_num = waveform_channel_map.at(i)[wave_num];
@@ -399,11 +403,12 @@ for (int i = 0; i < nEntries; i++) {
   //  c_wire_vs_time->SaveAs(Form("%sheat_map_entry_%d.pdf", output_dir, i));
 
   // Clean up
-  // delete scalingGraph;
-  // delete heat_map;
+  delete scalingGraph;
+  delete heat_map;
   delete h_sum;
   delete h_avg;
-
+  delete average;
+  delete sum;
  }
 }
 
