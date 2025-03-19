@@ -54,6 +54,45 @@ std::pair<double, double> CalculateHalfWidthHeightAndAmplitudeInduction(const st
   return {half_width, min_adc};
 }
 
+double CalculateDownPeakArea(const std::vector<double>& adc_vals, const std::vector<double>& time_vals, double peak_threshold = -10.0) {
+  if (adc_vals.size() < 2 || time_vals.size() < 2 || adc_vals.size() != time_vals.size()) return -1.0;
+
+  double area = 0.0;
+  bool found_zero_crossing = false;
+  bool in_down_peak = false;
+
+  for (size_t i = 1; i < adc_vals.size(); ++i) {
+    double prev_adc = adc_vals[i - 1];
+    double curr_adc = adc_vals[i];
+
+    // Look for zero-crossing from positive to negative
+    if (!found_zero_crossing && prev_adc > 0.0 && curr_adc <= 0.0) {
+      found_zero_crossing = true;
+      continue; // Continue to next point to confirm if it goes below threshold
+    }
+
+    // After zero-crossing, check if we hit a significant down-peak
+    if (found_zero_crossing && !in_down_peak && curr_adc <= peak_threshold) {
+      in_down_peak = true; // Start integrating
+    }
+
+    // If we're in the down-peak, integrate the area
+    if (in_down_peak) {
+      double delta_time = time_vals[i] - time_vals[i - 1];
+      double average_adc = (curr_adc + prev_adc) / 2.0;
+
+      area += average_adc * delta_time;
+
+      // Stop integrating when we cross back above zero
+      if (curr_adc >= 0.0) {
+        break;
+      }
+    }
+  }
+
+  return std::abs(area);
+}
+
 
 double CalculateAreaUnderCurve(const std::vector<double>& adc_vals, const std::vector<double>& time_vals) {
   if (adc_vals.size() < 2 || time_vals.size() < 2 || adc_vals.size() != time_vals.size()) return -1.0;
@@ -97,12 +136,13 @@ bool HasDoublePeakFeature(const std::vector<double>& adc_vals, double threshold)
 }
 
 
+
 void waveform_plotter() {
     gStyle->SetOptStat(0); //Removing the stats box
   gStyle->SetPalette(kCandy);
   TColor::InvertPalette();
   // Open the ROOT file
-  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb02_process2_EventBuilder2_p2_art1_run16740_40_20240912T093131-bbbea2ee-e870-40dc-a394-c50c841e86fd_Reco1Comm-20250311T150519.root");
+  TFile *file = TFile::Open("/exp/sbnd/data/users/bethanym/wire_transparency/filter_test/hists_decode_data_evb02_process2_EventBuilder2_p2_art2_run16740_67_20240912T103001-1c67d225-9ca6-4bc1-973a-c2d91659cfa6_Reco1Comm-20250316T152159.root");
 
   // Access the tree containing your waveform data
   TTree *tree = (TTree*)file->Get("hitdumper/hitdumpertree");
@@ -123,11 +163,11 @@ void waveform_plotter() {
 
   TH2D* heat_map = new TH2D("h_wire_vs_peak_time", "",  1700, 0, 1700, 3500,0, 3500);
   TH2D* width_map = new TH2D("h_wire_vs_width", "",  250, 0, 1700, 100,0, 15);
-  TH2D* peak_map = new TH2D("h_wire_vs_peak_amplitude", "",  250, 0, 1700, 100,0, 300);
-  TH2D* peak_vs_width = new TH2D("h_peak_vs_width", "",  100, 0,300, 100,0, 15);
+  TH2D* peak_map = new TH2D("h_wire_vs_peak_amplitude", "",  250, 0, 1700, 100,0, -200);
+  TH2D* peak_vs_width = new TH2D("h_peak_vs_width", "",  100, 0,-200, 100,0, 15);
   TH2D* area_under_curve_map = new TH2D("h_wire_vs_area", "",  250, 0, 1700, 100,0, 2500);
   TH2D* area_under_curve_vs_width = new TH2D("h_wire_vs_area_vs_width", "",  100, 0, 15, 100,0, 2500);
-  TH2D* area_under_curve_vs_amplitude = new TH2D("h_wire_vs_area_vs_amplitude", "",  100, 0, 300, 100,0, 2500);
+  TH2D* area_under_curve_vs_amplitude = new TH2D("h_wire_vs_area_vs_amplitude", "",  100, 0, -200, 100,0, 2500);
   TH1F *amplitude_hist = new TH1F("amplitude_hist", "Amplitude Distribution;Amplitude (ADC counts);Entries", 100, 0,300);
 
 
@@ -138,11 +178,11 @@ void waveform_plotter() {
 
     TH2D* event_heat_map = new TH2D(Form("h_wire_vs_peak_time_%lld",i), "",  1700, 0, 1700, 3500,0, 3500);
     TH2D* event_width_map = new TH2D(Form("h_wire_vs_width_%lld",i), "",  250, 0, 1700, 100,0, 15);
-    TH2D* event_peak_map = new TH2D(Form("h_wire_vs_peak_amplitude_%lld",i), "",  250, 0, 1700, 100,0, 300);
-    TH2D* event_peak_vs_width = new TH2D(Form("h_peak_vs_width_%lld",i), "",  100, 0,300, 100,0, 15);
+    TH2D* event_peak_map = new TH2D(Form("h_wire_vs_peak_amplitude_%lld",i), "",  250, 0, 1700, 100,0, -200);
+    TH2D* event_peak_vs_width = new TH2D(Form("h_peak_vs_width_%lld",i), "",  100, 0,-200, 100,0, 15);
     TH2D* event_area_under_curve_map = new TH2D(Form("h_wire_vs_area_%lld",i), "",  250, 0, 1700, 100,0, 2500);
     TH2D* event_area_under_curve_vs_width = new TH2D(Form("h_wire_vs_area_vs_width_%lld",i), "",  100, 0, 15, 100,0, 2500);
-    TH2D* event_area_under_curve_vs_amplitude = new TH2D(Form("h_wire_vs_area_vs_amplitude_%lld",i), "",  100, 0, 300, 100,0, 2500);
+    TH2D* event_area_under_curve_vs_amplitude = new TH2D(Form("h_wire_vs_area_vs_amplitude_%lld",i), "",  100, 0, -200, 100,0, 2500);
    
 
 
@@ -177,34 +217,27 @@ void waveform_plotter() {
     if (adc_vals.empty() || time_vals.empty()) {
       continue;
     }
-    
+    /*
     if (HasDoublePeakFeature(adc_vals, 10.0)){
       fail_count++;
       continue;
     }
-    /*
     double max_adc = *std::max_element(adc_vals.begin(), adc_vals.end());
     if (max_adc > 140) {
       fail_count++;
       continue;
     }
-
-    */
-
     auto [half_width, amplitude] = CalculateHalfWidthHeightAndAmplitudeCollection(adc_vals, time_vals);
-    //    if (half_width < 5.5 || half_width > 8.5) {
-    // fail_count++;
-    // continue;
-    // }
-
-
+    if (half_width < 5.5 || half_width > 8.5) {
+      fail_count++;
+      continue;
+    }
     double area_under_curve = CalculateAreaUnderCurve(adc_vals, time_vals);
     if (area_under_curve > 7.35 * amplitude + 250) {
       fail_count++;
       continue; // Reject this waveform based on the area vs amplitude cut
     }
-
-
+    */
     /*
     std::cout << "Waveform " << wave_num << " Half-Width Height: " << half_width << " Amplitude: " << amplitude << "\n";
     std::cout << "area under curve" <<area_under_curve<< endl;
@@ -212,7 +245,9 @@ void waveform_plotter() {
     std::cout << " Time " <<time_vals[0]<< endl;
     std::cout << " Wave " <<wave_num<< endl;
     */
-	//	auto [trough_half_width, trough_amplitude] = CalculateHalfWidthHeightAndAmplitudeInduction(adc_vals, time_vals);
+
+    auto [half_width, amplitude] = CalculateHalfWidthHeightAndAmplitudeInduction(adc_vals, time_vals);
+    double area_under_curve= CalculateDownPeakArea(adc_vals, time_vals, -10.0);
 	//  std::cout << " | Trough Half-Width: " << trough_half_width << " Trough Amplitude: " << trough_amplitude << "\n";
 
     pass_count++;
@@ -232,7 +267,7 @@ void waveform_plotter() {
     area_under_curve_map->Fill(wire_num[0],area_under_curve);
     area_under_curve_vs_width->Fill(half_width,area_under_curve);
     area_under_curve_vs_amplitude->Fill(amplitude,area_under_curve);
-    amplitude_hist->Fill(amplitude);
+    amplitude_hist->Fill(std::abs(amplitude));
   
   
     // Create a TGraph for the current waveform
@@ -246,16 +281,16 @@ void waveform_plotter() {
     graph->Draw("AL");
 
     
-    if((half_width>8.5 || half_width<5.5)/* || (amplitude>140) || ((half_width>8.5 || half_width<5.5)&& amplitude>140)*/){
+    // if((half_width>8.5 || half_width<5.5)/* || (amplitude>140) || ((half_width>8.5 || half_width<5.5)&& amplitude>140)*/){
     
-      // c1->SaveAs(Form("%swaveform_%d.pdf",output_dir, wave_num));
+    //      c1->SaveAs(Form("%swaveform_%d.pdf",output_dir, wave_num));
       
-      // std::cout << "Waveform " << wave_num << " Half-Width Height: " << half_width << " Amplitude: " << amplitude << "\n";
-      // std::cout << "area under curve" <<area_under_curve<< endl;
-      // std::cout << " Wire " <<wire_num[0]<< endl;
-      // std::cout << " Time " <<time_vals[0]<< endl;
-      // std::cout << " Wave " <<wave_num<< endl;
-    }
+    //  std::cout << "Waveform " << wave_num << " Half-Width Height: " << half_width << " Amplitude: " << amplitude << "\n";
+    // std::cout << "area under curve" <<area_under_curve<< endl;
+    // std::cout << " Wire " <<wire_num[0]<< endl;
+    // std::cout << " Time " <<time_vals[0]<< endl;
+    // std::cout << " Wave " <<wave_num<< endl;
+      // }
 
     //    std::cout << "Number of waveforms that passed: " << pass_count << std::endl;
     std::cout << "Number of waveforms that failed: " << fail_count << std::endl;
@@ -352,7 +387,7 @@ void waveform_plotter() {
   double fit_min = amplitude_hist->GetXaxis()->GetXmax();
   double fit_max = amplitude_hist->GetXaxis()->GetXmin();
   for (int bin = 1; bin <= amplitude_hist->GetNbinsX(); ++bin) {
-    if (amplitude_hist->GetBinContent(bin) > 500) {
+    if (amplitude_hist->GetBinContent(bin) > 20) {
       double bin_center = amplitude_hist->GetBinCenter(bin);
       if (bin_center < fit_min) fit_min = bin_center;
       if (bin_center > fit_max) fit_max = bin_center;
